@@ -28,6 +28,7 @@
 | `3_Auto_Off.cmd` | Выключить автообновление. |
 | `4_Auto_Status.cmd` | Показать статус автообновления. |
 | `5_New_Copy.cmd` | Создать свежую копию из архива репозитория. |
+| `6_Refresh_VS.cmd` | Заставить Visual Studio показать файлы/папки, добавленные в `Robots`/`Indicators`. |
 
 Обычный сценарий: скопировать папку `OsEngineUpdater` в корень копии → при необходимости поменять `Profile` → нажать `2_Auto_On.cmd` (само обновляется) и/или `1_Update_Now.cmd`.
 
@@ -124,6 +125,7 @@ OsEngineUpdater/
   3_Auto_Off.cmd
   4_Auto_Status.cmd
   5_New_Copy.cmd
+  6_Refresh_VS.cmd
   UpdateOsEngine.ps1
   OsEngineUpdateTask.ps1
   UpdateOsEngine.config.json
