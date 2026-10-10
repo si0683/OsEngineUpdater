@@ -1,0 +1,18 @@
+{
+  "Owner": "AlexWan",
+  "Repo": "OsEngine",
+  "Branch": "master",
+  "GitHubToken": "",
+  "WatchIntervalMinutes": 15,
+  "AutoProtectNonOfficial": true,
+  "ProtectedPaths": [
+    "**/bin/**",
+    "**/obj/**",
+    "**/.vs/**",
+    "**/.git/**",
+    "**/*.user"
+  ],
+  "UserProtectedPaths": [],
+  "BuildAfterUpdate": false,
+  "BuildCommand": "dotnet build \"project\\OsEngine\\OsEngine.csproj\" -c Debug"
+}
