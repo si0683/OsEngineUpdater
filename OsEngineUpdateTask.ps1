@@ -55,7 +55,7 @@ $taskName = "OsEngineUpdate_$hash"
 
 switch ($Action) {
     'Install' {
-        $action = New-ScheduledTaskAction -Execute 'powershell.exe' `
+        $taskAction = New-ScheduledTaskAction -Execute 'powershell.exe' `
             -Argument "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$ps1Path`" -Silent$modeArg"
         $trigger = New-ScheduledTaskTrigger -AtLogOn
         $once = New-ScheduledTaskTrigger -Once -At (Get-Date) `
@@ -65,7 +65,7 @@ switch ($Action) {
         $principal = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" -LogonType Interactive -RunLevel Limited
         $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -AllowStartIfOnBatteries `
             -DontStopIfGoingOnBatteries -MultipleInstances IgnoreNew -ExecutionTimeLimit ([TimeSpan]::Zero)
-        Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger `
+        Register-ScheduledTask -TaskName $taskName -Action $taskAction -Trigger $trigger `
             -Principal $principal -Settings $settings -Force `
             -Description "OsEngine auto update ($mode) for $repoRoot" | Out-Null
         Write-Host "Auto update ON: task '$taskName' ($mode) every $interval min + at logon." -ForegroundColor Green
