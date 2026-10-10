@@ -33,6 +33,7 @@ param(
     [switch]$NoBuild,
     [switch]$Watch,
     [switch]$Silent,
+    [switch]$Force,
     [string]$TargetDir = ''
 )
 
@@ -415,6 +416,28 @@ if ($bootstrapped) {
     Invoke-Build
     Ok "Bootstrap complete."
     if (-not $Watch) { return }
+}
+
+# Не обновлять, пока запущен терминал этой же копии: файлы bin заняты, а для профиля
+# Prebuilt это ещё и затрёт вашу сборку. Закрой OsEngine — обновление применится в
+# следующий прогон. Флаг -Force обходит проверку.
+function Test-ThisCopyRunning {
+    $procs = Get-Process OsEngine -ErrorAction SilentlyContinue
+    if (-not $procs) { return $false }
+    foreach ($p in $procs) {
+        try {
+            if ($p.Path -and $p.Path.StartsWith($repoRoot, [System.StringComparison]::OrdinalIgnoreCase)) { return $true }
+        } catch {}
+    }
+    return $false
+}
+
+if (Test-ThisCopyRunning) {
+    if ($Force) { Warn "OsEngine is running but -Force is set; continuing." }
+    else {
+        Warn "OsEngine is running from this copy - update skipped. Close the terminal to apply updates (or pass -Force)."
+        return
+    }
 }
 
 if ($Mirror) {
