@@ -193,6 +193,25 @@ function RawUrl([string]$path, [string]$sha) {
     "https://raw.githubusercontent.com/$o/$r/$sha/" + ($seg -join '/')
 }
 function Get-HeadSha { (Api "https://api.github.com/repos/$o/$r/commits/$br").sha }
+
+# Sync the built-in OsEngine updater badge with the current commit so the
+# "Update (N)" button does not show already-applied changes.
+# Engine\Updater\LastUpdatesInfo.txt is not part of the repo, so we touch it here.
+function Sync-OsEngineUpdaterState([string]$sha) {
+    try {
+        $file = Join-Path $repoRoot 'project\OsEngine\bin\Debug\Engine\Updater\LastUpdatesInfo.txt'
+        if (-not (Test-Path -LiteralPath $file)) { return }
+        $c = Api "https://api.github.com/repos/$o/$r/commits/$sha"
+        $dateStr = $c.commit.committer.date
+        if (-not $dateStr) { return }
+        $dt = [datetime]::Parse($dateStr, [System.Globalization.CultureInfo]::InvariantCulture,
+            [System.Globalization.DateTimeStyles]::AdjustToUniversal -bor [System.Globalization.DateTimeStyles]::AssumeUniversal)
+        $iso = $dt.ToUniversalTime().ToString('o')
+        Set-Content -LiteralPath $file -Value $iso -Encoding ASCII
+        Info "Synced built-in updater state: $iso"
+    }
+    catch { Warn "Could not sync built-in updater state: $($_.Exception.Message)" }
+}
 function Save-State([string]$sha) {
     ([pscustomobject]@{ LastSha = $sha; UpdatedUtc = (Get-Date).ToUniversalTime().ToString('o') } | ConvertTo-Json) |
         Set-Content -LiteralPath $statePath -Encoding UTF8
@@ -303,6 +322,7 @@ function Invoke-Mirror {
 
     Save-State $head
     Set-Content -LiteralPath $manifestPath -Value $managed -Encoding UTF8
+    Sync-OsEngineUpdaterState $head
     Ok "Done: added $added, updated $updated, unchanged $same, removed $removed, skipped(protected) $skipped"
 }
 
@@ -401,6 +421,7 @@ function Invoke-Pass([bool]$apply) {
     Invoke-Delta $base $head $officialSet
     Save-State $head
     Save-Manifest $officialSet
+    Sync-OsEngineUpdaterState $head
     Invoke-Build
     Ok "Updated to $head."
 }
@@ -413,14 +434,15 @@ if ($bootstrapped) {
     $head = Get-HeadSha
     Save-State $head
     Save-Manifest (Get-OfficialSet $head)
+    Sync-OsEngineUpdaterState $head
     Invoke-Build
     Ok "Bootstrap complete."
     if (-not $Watch) { return }
 }
 
-# Не обновлять, пока запущен терминал этой же копии: файлы bin заняты, а для профиля
-# Prebuilt это ещё и затрёт вашу сборку. Закрой OsEngine — обновление применится в
-# следующий прогон. Флаг -Force обходит проверку.
+# Do not update while this copy's OsEngine is running: bin files are locked and,
+# for the Prebuilt profile, the build would be overwritten. Close OsEngine to apply
+# the update on the next run. The -Force switch bypasses this check.
 function Test-ThisCopyRunning {
     $procs = Get-Process OsEngine -ErrorAction SilentlyContinue
     if (-not $procs) { return $false }
@@ -432,7 +454,7 @@ function Test-ThisCopyRunning {
     return $false
 }
 
-if (Test-ThisCopyRunning) {
+if ((Test-ThisCopyRunning) -and (-not $CheckOnly)) {
     if ($Force) { Warn "OsEngine is running but -Force is set; continuing." }
     else {
         Warn "OsEngine is running from this copy - update skipped. Close the terminal to apply updates (or pass -Force)."
@@ -452,6 +474,7 @@ if ($FullSync) {
     Invoke-FullSync $officialSet (Load-Manifest)
     Save-State $head
     Save-Manifest $officialSet
+    Sync-OsEngineUpdaterState $head
     Invoke-Build
     if (-not $Watch) { return }
 }
