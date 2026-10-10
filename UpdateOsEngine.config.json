@@ -3,16 +3,9 @@
   "Repo": "OsEngine",
   "Branch": "master",
   "GitHubToken": "",
-  "WatchIntervalMinutes": 15,
-  "AutoProtectNonOfficial": true,
-  "ProtectedPaths": [
-    "**/bin/**",
-    "**/obj/**",
-    "**/.vs/**",
-    "**/.git/**",
-    "**/*.user"
-  ],
+  "Profile": "Prebuilt",
+  "AutoMode": "Mirror",
+  "AutoIntervalMinutes": 1440,
   "UserProtectedPaths": [],
-  "BuildAfterUpdate": false,
-  "BuildCommand": "dotnet build \"project\\OsEngine\\OsEngine.csproj\" -c Debug"
+  "BuildAfterUpdate": null
 }

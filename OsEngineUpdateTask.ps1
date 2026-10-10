@@ -1,16 +1,14 @@
 <#
-    Registers/removes a Windows Scheduled Task that runs the OsEngine
-    updater for THIS copy automatically.
+    Installs/removes the Windows Scheduled Task for automatic updates
+    of THIS OsEngine copy. Mode and interval come from
+    UpdateOsEngine.config.json (AutoMode / AutoIntervalMinutes).
+
+    Task name is unique per copy (derived from the folder path).
 
     Usage:
-        powershell -ExecutionPolicy Bypass -File OsEngineUpdateTask.ps1 -Action Install
-        ... -Action Install -IntervalMinutes 30
-        ... -Action Status
-        ... -Action Remove
-
-    The task name is unique per copy (derived from the folder path),
-    so the 5 copies do not clash. Creating a scheduled task may require
-    running once as Administrator.
+        OsEngineUpdateTask.ps1 -Action Install [-IntervalMinutes N]
+        OsEngineUpdateTask.ps1 -Action Status
+        OsEngineUpdateTask.ps1 -Action Remove
 #>
 #requires -version 5.1
 [CmdletBinding()]
@@ -35,14 +33,21 @@ function Find-RepoRoot {
 $repoRoot = Find-RepoRoot
 if (-not $repoRoot) { throw "Repo root not found. Put this updater inside an OsEngine copy." }
 
-# interval: parameter > config > default
-$interval = $IntervalMinutes
-if ($interval -le 0 -and (Test-Path -LiteralPath $configPath)) {
-    try { $interval = [int](Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json).WatchIntervalMinutes } catch {}
-}
-if ($interval -le 0) { $interval = 15 }
+$cfg = $null
+if (Test-Path -LiteralPath $configPath) { $cfg = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json }
 
-# unique task name per copy
+$interval = $IntervalMinutes
+if ($interval -le 0 -and $cfg) {
+    if ($cfg.AutoIntervalMinutes) { $interval = [int]$cfg.AutoIntervalMinutes }
+    elseif ($cfg.PSObject.Properties.Name -contains 'WatchIntervalMinutes' -and $cfg.WatchIntervalMinutes) { $interval = [int]$cfg.WatchIntervalMinutes }
+}
+if ($interval -le 0) { $interval = 1440 }
+
+$mode = 'Mirror'
+if ($cfg -and $cfg.AutoMode) { $mode = [string]$cfg.AutoMode }
+$modeArg = ''
+if ($mode -eq 'Mirror') { $modeArg = ' -Mirror' }
+
 $sha1 = [System.Security.Cryptography.SHA1]::Create()
 $hashBytes = $sha1.ComputeHash([Text.Encoding]::UTF8.GetBytes($repoRoot.ToLowerInvariant()))
 $hash = -join ($hashBytes[0..3] | ForEach-Object { $_.ToString('x2') })
@@ -51,7 +56,7 @@ $taskName = "OsEngineUpdate_$hash"
 switch ($Action) {
     'Install' {
         $action = New-ScheduledTaskAction -Execute 'powershell.exe' `
-            -Argument "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$ps1Path`" -Silent"
+            -Argument "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$ps1Path`" -Silent$modeArg"
         $trigger = New-ScheduledTaskTrigger -AtLogOn
         $once = New-ScheduledTaskTrigger -Once -At (Get-Date) `
             -RepetitionInterval (New-TimeSpan -Minutes $interval) `
@@ -62,23 +67,23 @@ switch ($Action) {
             -DontStopIfGoingOnBatteries -MultipleInstances IgnoreNew -ExecutionTimeLimit ([TimeSpan]::Zero)
         Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger `
             -Principal $principal -Settings $settings -Force `
-            -Description "OsEngine updater for $repoRoot" | Out-Null
-        Write-Host "Installed scheduled task '$taskName' for $repoRoot (every $interval min + at logon)." -ForegroundColor Green
+            -Description "OsEngine auto update ($mode) for $repoRoot" | Out-Null
+        Write-Host "Auto update ON: task '$taskName' ($mode) every $interval min + at logon." -ForegroundColor Green
     }
     'Remove' {
         Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
-        Write-Host "Removed scheduled task '$taskName'." -ForegroundColor Green
+        Write-Host "Auto update OFF: task '$taskName' removed." -ForegroundColor Green
     }
     'Status' {
         $t = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
         if ($t) {
             $i = $t | Get-ScheduledTaskInfo
-            Write-Host "Task: $taskName"
-            Write-Host "  State       : $($t.State)"
-            Write-Host "  LastRunTime : $($i.LastRunTime)"
-            Write-Host "  LastResult  : $($i.LastTaskResult)"
-            Write-Host "  NextRunTime : $($i.NextRunTime)"
+            Write-Host "Task      : $taskName"
+            Write-Host "  State   : $($t.State)"
+            Write-Host "  LastRun : $($i.LastRunTime)"
+            Write-Host "  Result  : $($i.LastTaskResult)"
+            Write-Host "  NextRun : $($i.NextRunTime)"
         }
-        else { Write-Host "Task '$taskName' is not installed." -ForegroundColor Yellow }
+        else { Write-Host "Auto update is OFF (task '$taskName' not installed)." -ForegroundColor Yellow }
     }
 }

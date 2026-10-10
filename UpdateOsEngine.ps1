@@ -3,21 +3,25 @@
     ------------------------------------------------------------------
     Official-only rule: only files that exist in the official repo are
     ever written or deleted. Your own files/folders are never touched.
-    Protected paths: bin/ obj/ .vs/ .git/ *.user (+ UserProtectedPaths).
 
-    Modes:
-        (default)     incremental update of changed official files
-        -Mirror       make non-protected official files match the repo
-                      exactly (add/update/delete by git blob SHA)
-        -FullSync     full refresh from the archive (slow, big)
-        -Bootstrap    create a fresh copy from the archive (empty folder)
-        -CheckOnly    only report, do not change files
-        -NoBuild      skip the build step
-        -Watch        loop, check every N minutes (config)
-        -Silent       quiet + log file (for Task Scheduler)
-        -TargetDir    target folder for -Bootstrap
+    Profile (UpdateOsEngine.config.json -> "Profile"):
+        "Prebuilt"    you use the shipped engine (bin/Debug/OsEngine.exe)
+                      and your code lives in bin/Debug/Custom/... . bin IS
+                      updated (engine binaries stay current). No rebuild.
+        "FromSource"  you compile the solution yourself and build custom
+                      code into the engine. bin is protected; rebuild runs.
 
-    First run stores a baseline commit; later runs apply only new updates.
+    Simple commands (double-click):
+        1_Update_Now.cmd    update this copy now (fast, full 1:1 engine)
+        2_Auto_On.cmd       turn on automatic daily update (Task Scheduler)
+        3_Auto_Off.cmd      turn off automatic update
+        4_Auto_Status.cmd   show the scheduled task status
+        5_New_Copy.cmd      create a fresh copy from the archive
+
+    Advanced (direct):
+        powershell -ExecutionPolicy Bypass -File UpdateOsEngine.ps1 [switches]
+        -Mirror  -FullSync  -Bootstrap  -CheckOnly  -NoBuild  -Watch
+        -Silent  -TargetDir <path>
 #>
 #requires -version 5.1
 [CmdletBinding()]
@@ -54,23 +58,38 @@ $defaults = [pscustomobject]@{
     Repo    = 'OsEngine'
     Branch  = 'master'
     GitHubToken = ''
-    WatchIntervalMinutes = 15
-    ProtectedPaths = @(
-        '**/bin/**',
-        '**/obj/**',
-        '**/.vs/**',
-        '**/.git/**',
-        '**/*.user'
-    )
+    Profile = 'Prebuilt'
+    AutoMode = 'Mirror'
+    AutoIntervalMinutes = 1440
     UserProtectedPaths = @()
-    BuildAfterUpdate = $false
-    BuildCommand = 'dotnet build "project\OsEngine\OsEngine.csproj" -c Debug'
+    BuildAfterUpdate = $null
 }
 if (-not (Test-Path -LiteralPath $configPath)) {
     ($defaults | ConvertTo-Json -Depth 8) | Set-Content -LiteralPath $configPath -Encoding UTF8
     Ok "Created config: $configPath"
 }
 $cfg = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
+
+# profile -> protected paths / rebuild
+$profile = 'Prebuilt'
+if ($cfg.Profile) { $profile = [string]$cfg.Profile }
+
+$binProtected = ($profile -eq 'FromSource')
+$script:buildAfter = ($profile -eq 'FromSource')
+if (($cfg.PSObject.Properties.Name -contains 'BuildAfterUpdate') -and ($null -ne $cfg.BuildAfterUpdate)) {
+    $script:buildAfter = [bool]$cfg.BuildAfterUpdate
+}
+
+$script:intervalMinutes = 1440
+if ($cfg.AutoIntervalMinutes) { $script:intervalMinutes = [int]$cfg.AutoIntervalMinutes }
+elseif ($cfg.PSObject.Properties.Name -contains 'WatchIntervalMinutes' -and $cfg.WatchIntervalMinutes) { $script:intervalMinutes = [int]$cfg.WatchIntervalMinutes }
+if ($script:intervalMinutes -lt 1) { $script:intervalMinutes = 1 }
+
+$protectGlobs = @('**/obj/**', '**/.vs/**', '**/.git/**', '**/*.user')
+if ($binProtected) { $protectGlobs += '**/bin/**' }
+# legacy/extra user patterns
+if ($cfg.PSObject.Properties.Name -contains 'ProtectedPaths' -and $cfg.ProtectedPaths) { $protectGlobs += @($cfg.ProtectedPaths) }
+if ($cfg.UserProtectedPaths) { $protectGlobs += @($cfg.UserProtectedPaths) }
 
 # ------------------------------ github ----------------------------
 $headers = @{ 'User-Agent' = 'OsEngine-Updater'; 'Accept' = 'application/vnd.github+json' }
@@ -115,7 +134,7 @@ $repoRoot = Find-RepoRoot
 $bootstrapped = $false
 if ($Bootstrap -or -not $repoRoot) {
     if (-not $Bootstrap) {
-        throw "Repo root not found. Put this updater inside a copy (folder with 'project'), or run with -Bootstrap to create one."
+        throw "Repo root not found. Put this updater inside a copy (folder with 'project'), or run 5_New_Copy.cmd."
     }
     $targetRoot = $TargetDir
     if (-not $targetRoot) { $targetRoot = Split-Path $scriptDir -Parent }
@@ -157,7 +176,7 @@ function Convert-GlobToRegex([string]$glob) {
     return $sb.ToString()
 }
 $protectedRegex = New-Object System.Collections.Generic.List[regex]
-foreach ($g in @($cfg.ProtectedPaths) + @($cfg.UserProtectedPaths)) {
+foreach ($g in $protectGlobs) {
     if ($g) { $protectedRegex.Add([regex]::new((Convert-GlobToRegex $g))) }
 }
 function Is-Protected([string]$rel) {
@@ -191,10 +210,7 @@ function Get-GitBlobSha([string]$file) {
     }
     finally { $sha1.Dispose() }
 }
-function Get-OfficialTree([string]$sha) {
-    $tree = Api "https://api.github.com/repos/$o/$r/git/trees/$sha`?recursive=1"
-    return $tree
-}
+function Get-OfficialTree([string]$sha) { Api "https://api.github.com/repos/$o/$r/git/trees/$sha`?recursive=1" }
 function Get-OfficialSet([string]$sha) {
     try { $tree = Get-OfficialTree $sha }
     catch { Warn "Cannot fetch official tree: $($_.Exception.Message)"; return $null }
@@ -236,34 +252,6 @@ function Invoke-Prune($oldManifest, $officialSet) {
     }
     if ($removed -gt 0) { Ok "Removed $removed file(s) deleted upstream." }
     return $removed
-}
-
-# --------------------------- full sync ----------------------------
-function Invoke-FullSync($officialSet, $oldManifest) {
-    if ($officialSet) { Invoke-Prune $oldManifest $officialSet | Out-Null }
-    $zip = Join-Path $env:TEMP ("osengine_" + [guid]::NewGuid().ToString('N') + ".zip")
-    $dst = Join-Path $env:TEMP ("osengine_" + [guid]::NewGuid().ToString('N'))
-    New-Item -ItemType Directory -Path $dst -Force | Out-Null
-    Warn "Full sync: downloading archive (big, be patient)..."
-    Invoke-WebRequest -Uri "https://codeload.github.com/$o/$r/zip/refs/heads/$br" -OutFile $zip -UseBasicParsing
-    Warn "Extracting..."
-    Add-Type -AssemblyName System.IO.Compression.FileSystem
-    [IO.Compression.ZipFile]::ExtractToDirectory($zip, $dst)
-    $root = Get-ChildItem -LiteralPath $dst -Directory | Where-Object { $_.Name -like "$r-*" } | Select-Object -First 1
-    if (-not $root) { throw "Archive root not found" }
-    $copied = 0; $skipped = 0
-    Get-ChildItem -LiteralPath $root.FullName -Recurse -File | ForEach-Object {
-        $rel = $_.FullName.Substring($root.FullName.Length + 1)
-        if (Is-Protected $rel) { $skipped++; return }
-        $dest = Join-Path $repoRoot $rel
-        $dir = Split-Path $dest -Parent
-        if (-not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
-        Copy-Item -LiteralPath $_.FullName -Destination $dest -Force
-        $copied++
-    }
-    Remove-Item -LiteralPath $zip -Force -ErrorAction SilentlyContinue
-    Remove-Item -LiteralPath $dst -Recurse -Force -ErrorAction SilentlyContinue
-    Ok "Full sync done: copied $copied file(s), skipped(protected) $skipped"
 }
 
 # ----------------------------- mirror -----------------------------
@@ -314,7 +302,7 @@ function Invoke-Mirror {
 
     Save-State $head
     Set-Content -LiteralPath $manifestPath -Value $managed -Encoding UTF8
-    Ok "Mirror done: added $added, updated $updated, unchanged $same, removed $removed, skipped(protected) $skipped"
+    Ok "Done: added $added, updated $updated, unchanged $same, removed $removed, skipped(protected) $skipped"
 }
 
 # ----------------------------- delta ------------------------------
@@ -349,11 +337,41 @@ function Invoke-Delta([string]$fromSha, [string]$toSha, $officialSet) {
     Ok "Applied $n change(s), skipped(protected) $skip"
 }
 
+# --------------------------- full sync ----------------------------
+function Invoke-FullSync($officialSet, $oldManifest) {
+    if ($officialSet) { Invoke-Prune $oldManifest $officialSet | Out-Null }
+    $zip = Join-Path $env:TEMP ("osengine_" + [guid]::NewGuid().ToString('N') + ".zip")
+    $dst = Join-Path $env:TEMP ("osengine_" + [guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory -Path $dst -Force | Out-Null
+    Warn "Full sync: downloading archive (big, be patient)..."
+    Invoke-WebRequest -Uri "https://codeload.github.com/$o/$r/zip/refs/heads/$br" -OutFile $zip -UseBasicParsing
+    Warn "Extracting..."
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    [IO.Compression.ZipFile]::ExtractToDirectory($zip, $dst)
+    $root = Get-ChildItem -LiteralPath $dst -Directory | Where-Object { $_.Name -like "$r-*" } | Select-Object -First 1
+    if (-not $root) { throw "Archive root not found" }
+    $copied = 0; $skipped = 0
+    Get-ChildItem -LiteralPath $root.FullName -Recurse -File | ForEach-Object {
+        $rel = $_.FullName.Substring($root.FullName.Length + 1)
+        if (Is-Protected $rel) { $skipped++; return }
+        $dest = Join-Path $repoRoot $rel
+        $dir = Split-Path $dest -Parent
+        if (-not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+        Copy-Item -LiteralPath $_.FullName -Destination $dest -Force
+        $copied++
+    }
+    Remove-Item -LiteralPath $zip -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $dst -Recurse -Force -ErrorAction SilentlyContinue
+    Ok "Full sync done: copied $copied file(s), skipped(protected) $skipped"
+}
+
 function Invoke-Build {
-    if ($NoBuild -or -not $cfg.BuildAfterUpdate) { return }
-    Info "Building: $($cfg.BuildCommand)"
+    if ($NoBuild -or -not $script:buildAfter) { return }
+    $cmdStr = 'dotnet build "project\OsEngine\OsEngine.csproj" -c Debug'
+    if (($cfg.PSObject.Properties.Name -contains 'BuildCommand') -and $cfg.BuildCommand) { $cmdStr = [string]$cfg.BuildCommand }
+    Info "Building: $cmdStr"
     Push-Location $repoRoot
-    try { & cmd /c $cfg.BuildCommand } finally { Pop-Location }
+    try { & cmd /c $cmdStr } finally { Pop-Location }
 }
 
 # --------------------------- one pass -----------------------------
@@ -367,7 +385,7 @@ function Invoke-Pass([bool]$apply) {
     if (-not $base) {
         Save-State $head
         if ($apply) { Save-Manifest (Get-OfficialSet $head) }
-        Warn "First run: baseline saved ($head). No files changed. Use -FullSync to force a refresh."
+        Warn "First run: baseline saved. Use 1_Update_Now.cmd to sync now."
         return
     }
     if ($base -eq $head) {
@@ -388,21 +406,21 @@ function Invoke-Pass([bool]$apply) {
 
 # ----------------------------- flow -------------------------------
 Info "Repo root: $repoRoot"
-Info "Source: $o/$r@$br"
+Info "Source: $o/$r@$br (profile: $profile, rebuild: $([bool]$script:buildAfter))"
 
 if ($bootstrapped) {
     $head = Get-HeadSha
     Save-State $head
     Save-Manifest (Get-OfficialSet $head)
     Invoke-Build
-    Ok "Bootstrap complete ($head)."
+    Ok "Bootstrap complete."
     if (-not $Watch) { return }
 }
 
 if ($Mirror) {
     Invoke-Mirror
     Invoke-Build
-    if (-not $Watch) { Ok "Done."; return }
+    if (-not $Watch) { return }
 }
 
 if ($FullSync) {
@@ -412,21 +430,16 @@ if ($FullSync) {
     Save-State $head
     Save-Manifest $officialSet
     Invoke-Build
-    Ok "Done."
     if (-not $Watch) { return }
 }
 
 if ($Watch) {
-    $mins = 15
-    if ($cfg.WatchIntervalMinutes) { $mins = [int]$cfg.WatchIntervalMinutes }
-    if ($mins -lt 1) { $mins = 1 }
-    Info "Watch mode: checking every $mins minute(s). Press Ctrl+C to stop."
+    Info "Auto mode: checking every $($script:intervalMinutes) minute(s). Press Ctrl+C to stop."
     while ($true) {
-        try { Invoke-Pass (-not $CheckOnly) } catch { Fail "Watch error: $($_.Exception.Message)" }
-        Start-Sleep -Seconds ($mins * 60)
+        try { Invoke-Pass $true } catch { Fail "Auto error: $($_.Exception.Message)" }
+        Start-Sleep -Seconds ($script:intervalMinutes * 60)
     }
 }
 else {
-    Invoke-Pass (-not $CheckOnly)
-    Ok "Done."
+    if (-not ($Mirror -or $FullSync -or $bootstrapped)) { Invoke-Pass (-not $CheckOnly) }
 }
