@@ -5,12 +5,21 @@ namespace OsEngineUpdater.Core
     /// <summary>Что из ваших репозиториев установлено в копию (&lt;копия&gt;\.osengine-updater\packages.json).</summary>
     public sealed class InstalledPackage
     {
+        /// <summary>Ключ установки: репозиторий + тип (+ папка для своих файлов).</summary>
         public string SourceId { get; set; }
+
+        /// <summary>Ключ репозитория (нормализованный адрес).</summary>
+        public string RepoId { get; set; }
+
         public string Name { get; set; }
         public PackageKind Kind { get; set; }
         public string Url { get; set; }
+        public string Branch { get; set; }
         public string Commit { get; set; }
         public string InstalledUtc { get; set; }
+
+        /// <summary>Выбранные файлы репозитория (пути через /). null — весь репозиторий.</summary>
+        public List<string> Selected { get; set; }
 
         /// <summary>Папка установки относительно корня копии.</summary>
         public string TargetDir { get; set; }
@@ -25,9 +34,22 @@ namespace OsEngineUpdater.Core
         public string Message { get; init; }
     }
 
+    /// <summary>Скачанный (клонированный) репозиторий во временной папке.</summary>
+    public sealed class RepoCheckout : IDisposable
+    {
+        public RepoInfo Repo { get; init; }
+        public string Dir { get; init; }
+        public string Commit { get; init; }
+
+        /// <summary>Файлы репозитория (пути через /) без служебных файлов git.</summary>
+        public List<string> Files { get; init; }
+
+        public void Dispose() => PackageManager.DeleteTree(Dir);
+    }
+
     /// <summary>
-    /// Установка / обновление / удаление ваших роботов, индикаторов и файлов из своих репозиториев.
-    /// Репозиторий клонируется во временную папку, файлы копируются в копию OsEngine, установка запоминается.
+    /// Установка / обновление / удаление выбранного из своих репозиториев.
+    /// Репозиторий клонируется во временную папку, выбранные файлы копируются в копию OsEngine, установка запоминается.
     /// Установленные файлы защищены от обновления OsEngine (даже если лежат поверх официальных).
     /// </summary>
     public static class PackageManager
@@ -51,6 +73,7 @@ namespace OsEngineUpdater.Core
                         foreach (InstalledPackage p in list)
                         {
                             p.Files = new Dictionary<string, string>(p.Files ?? new Dictionary<string, string>(), StringComparer.OrdinalIgnoreCase);
+                            p.RepoId ??= RepoInfo.NormalizeId(p.Url);
                         }
 
                         return list;
@@ -81,16 +104,21 @@ namespace OsEngineUpdater.Core
             return LoadInstalled(copy).SelectMany(p => p.Files.Keys);
         }
 
+        public static string InstallKey(RepoInfo repo, PackageKind kind, string targetRel)
+        {
+            return repo.Id + "|" + kind + (kind == PackageKind.Files ? "|" + (targetRel ?? "").ToLowerInvariant() : "");
+        }
+
         #endregion
 
-        /// <summary>Папка установки в копии (абсолютный путь). Не может выходить за пределы копии.</summary>
-        public static string TargetDir(CopyInfo copy, UpdaterConfig cfg, PackageSource src)
+        /// <summary>Папка установки (абсолютный путь). Для робота/индикатора — подпапка с именем репозитория.</summary>
+        public static string TargetDir(CopyInfo copy, UpdaterConfig cfg, PackageKind kind, string repoName, string filesTarget)
         {
-            string rel = src.Kind switch
+            string rel = kind switch
             {
-                PackageKind.Robot => Path.Combine(cfg.EffectiveRobotsDir, SafeName(src.DisplayName)),
-                PackageKind.Indicator => Path.Combine(cfg.EffectiveIndicatorsDir, SafeName(src.DisplayName)),
-                _ => string.IsNullOrWhiteSpace(src.TargetPath) ? "" : src.TargetPath.Trim()
+                PackageKind.Robot => Path.Combine(cfg.EffectiveRobotsDir, SafeName(repoName)),
+                PackageKind.Indicator => Path.Combine(cfg.EffectiveIndicatorsDir, SafeName(repoName)),
+                _ => (filesTarget ?? "").Trim()
             };
 
             string full = Path.GetFullPath(Path.Combine(copy.Root, rel.TrimStart('\\', '/')));
@@ -104,92 +132,98 @@ namespace OsEngineUpdater.Core
             return full.TrimEnd('\\');
         }
 
-        /// <summary>
-        /// Установить или обновить пакет. confirm(текст) вызывается, если будут перезаписаны чужие или изменённые вами файлы.
-        /// </summary>
-        public static async Task<PackageResult> InstallAsync(CopyInfo copy, UpdaterConfig cfg, PackageSource src,
-            UpdateLog log, Func<string, bool> confirm, CancellationToken ct)
+        /// <summary>Скачать репозиторий (последний коммит) во временную папку.</summary>
+        public static async Task<RepoCheckout> FetchAsync(RepoInfo repo, CancellationToken ct)
         {
             string temp = Path.Combine(Path.GetTempPath(), "osu_pkg_" + Guid.NewGuid().ToString("N"));
+            List<string> args = new List<string> { "clone", "--depth", "1", "--quiet" };
+
+            if (!string.IsNullOrWhiteSpace(repo.Branch))
+            {
+                args.Add("--branch");
+                args.Add(repo.Branch.Trim());
+            }
+
+            args.Add(repo.CloneUrl);
+            args.Add(temp);
+
+            (int code, _, string err) = await GitRunner.RunWithAuthAsync(null, RepoCatalog.GitAuthHeader(repo), ct, args.ToArray());
+
+            if (code != 0)
+            {
+                DeleteTree(temp);
+                throw new InvalidOperationException(GitRunner.ShortError(err));
+            }
+
+            (_, string sha, _) = await GitRunner.RunAsync(temp, ct, "rev-parse", "HEAD");
+
+            List<string> files = Directory.EnumerateFiles(temp, "*", SearchOption.AllDirectories)
+                .Select(f => Path.GetRelativePath(temp, f))
+                .Where(rel => !rel.Split('\\').Any(seg => SkipNames.Contains(seg, StringComparer.OrdinalIgnoreCase)))
+                .Select(rel => rel.Replace('\\', '/'))
+                .OrderBy(rel => rel, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            return new RepoCheckout { Repo = repo, Dir = temp, Commit = sha, Files = files };
+        }
+
+        /// <summary>
+        /// Установить или обновить выбранные файлы репозитория. selected = null — весь репозиторий.
+        /// confirm(текст) вызывается, если будут перезаписаны чужие или изменённые вами файлы.
+        /// </summary>
+        public static PackageResult Install(CopyInfo copy, UpdaterConfig cfg, RepoCheckout co, PackageKind kind, string filesTarget,
+            IReadOnlyCollection<string> selected, UpdateLog log, Func<string, bool> confirm)
+        {
+            RepoInfo repo = co.Repo;
 
             try
             {
-                log.Info($"{src.DisplayName}: скачиваю {src.CloneUrl}{(string.IsNullOrWhiteSpace(src.Branch) ? "" : " (" + src.Branch + ")")} ...");
-
-                List<string> args = new List<string> { "clone", "--depth", "1", "--quiet" };
-
-                if (!string.IsNullOrWhiteSpace(src.Branch))
-                {
-                    args.Add("--branch");
-                    args.Add(src.Branch.Trim());
-                }
-
-                args.Add(src.CloneUrl);
-                args.Add(temp);
-
-                (int code, _, string err) = await GitRunner.RunAsync(null, ct, args.ToArray());
-
-                if (code != 0)
-                {
-                    return Fail(log, src, GitRunner.ShortError(err));
-                }
-
-                (_, string sha, _) = await GitRunner.RunAsync(temp, ct, "rev-parse", "HEAD");
-
-                string sourceDir = string.IsNullOrWhiteSpace(src.SubPath) ? temp : Path.Combine(temp, src.SubPath.Trim().TrimStart('\\', '/'));
-
-                if (!Directory.Exists(sourceDir))
-                {
-                    return Fail(log, src, $"В репозитории нет папки {src.SubPath}.");
-                }
-
-                string target = TargetDir(copy, cfg, src);
+                string target = TargetDir(copy, cfg, kind, repo.Name, filesTarget);
                 string targetRel = Rel(copy, target);
+                string key = InstallKey(repo, kind, targetRel);
 
-                // файлы пакета: относительный путь в пакете → полный путь в клоне
-                Dictionary<string, string> files = Directory.EnumerateFiles(sourceDir, "*", SearchOption.AllDirectories)
-                    .Select(f => (Full: f, Rel: Path.GetRelativePath(sourceDir, f)))
-                    .Where(x => !x.Rel.Split('\\').Any(seg => SkipNames.Contains(seg, StringComparer.OrdinalIgnoreCase)))
-                    .ToDictionary(x => x.Rel, x => x.Full, StringComparer.OrdinalIgnoreCase);
+                HashSet<string> pick = selected == null ? null : new HashSet<string>(selected, StringComparer.OrdinalIgnoreCase);
+                List<string> files = co.Files.Where(f => pick == null || pick.Contains(f)).ToList();
 
                 if (files.Count == 0)
                 {
-                    return Fail(log, src, "В репозитории нет файлов для установки.");
+                    return Fail(log, repo.Name, "не выбрано ни одного файла.");
                 }
 
                 List<InstalledPackage> installed = LoadInstalled(copy);
-                InstalledPackage prev = installed.FirstOrDefault(p => p.SourceId == src.Id);
+                InstalledPackage prev = installed.FirstOrDefault(p => p.SourceId == key);
 
                 // проверка перезаписи: чужие файлы и файлы, изменённые после прошлой установки
                 List<string> foreign = new List<string>();
                 List<string> modified = new List<string>();
 
-                foreach (KeyValuePair<string, string> f in files)
+                foreach (string f in files)
                 {
-                    string dest = Path.Combine(target, f.Key);
-                    string key = Rel(copy, dest);
+                    string src = Path.Combine(co.Dir, f.Replace('/', '\\'));
+                    string dest = Path.Combine(target, f.Replace('/', '\\'));
+                    string destKey = Rel(copy, dest);
 
-                    if (!File.Exists(dest) || UpdateEngine.GitBlobSha(dest) == UpdateEngine.GitBlobSha(f.Value))
+                    if (!File.Exists(dest) || UpdateEngine.GitBlobSha(dest) == UpdateEngine.GitBlobSha(src))
                     {
                         continue;
                     }
 
-                    if (prev != null && prev.Files.TryGetValue(key, out string was))
+                    if (prev != null && prev.Files.TryGetValue(destKey, out string was))
                     {
                         if (UpdateEngine.GitBlobSha(dest) != was)
                         {
-                            modified.Add(key);
+                            modified.Add(destKey);
                         }
                     }
                     else
                     {
-                        foreign.Add(key);
+                        foreign.Add(destKey);
                     }
                 }
 
                 if (foreign.Count + modified.Count > 0)
                 {
-                    string msg = $"«{src.DisplayName}»: будут перезаписаны файлы в {Shown(targetRel)}:\n";
+                    string msg = $"«{repo.Name}»: будут перезаписаны файлы в {Shown(targetRel)}:\n";
 
                     if (modified.Count > 0)
                     {
@@ -206,38 +240,38 @@ namespace OsEngineUpdater.Core
                         msg += "\n  ...";
                     }
 
-                    msg += "\n\nПерезаписать?";
-
-                    if (!confirm(msg))
+                    if (!confirm(msg + "\n\nПерезаписать?"))
                     {
-                        log.Warn($"{src.DisplayName}: установка отменена.");
+                        log.Warn($"{repo.Name}: установка отменена.");
                         return new PackageResult { Done = false, Message = "отменено" };
                     }
                 }
 
-                // копирование
                 InstalledPackage rec = new InstalledPackage
                 {
-                    SourceId = src.Id,
-                    Name = src.DisplayName,
-                    Kind = src.Kind,
-                    Url = src.Url,
-                    Commit = sha,
+                    SourceId = key,
+                    RepoId = repo.Id,
+                    Name = repo.Name,
+                    Kind = kind,
+                    Url = repo.WebUrl ?? repo.CloneUrl,
+                    Branch = repo.Branch,
+                    Commit = co.Commit,
                     InstalledUtc = DateTime.UtcNow.ToString("o"),
+                    Selected = pick == null ? null : files,
                     TargetDir = targetRel
                 };
 
-                foreach (KeyValuePair<string, string> f in files)
+                foreach (string f in files)
                 {
-                    string dest = Path.Combine(target, f.Key);
+                    string dest = Path.Combine(target, f.Replace('/', '\\'));
                     Directory.CreateDirectory(Path.GetDirectoryName(dest));
-                    File.Copy(f.Value, dest, true);
+                    File.Copy(Path.Combine(co.Dir, f.Replace('/', '\\')), dest, true);
                     File.SetAttributes(dest, File.GetAttributes(dest) & ~FileAttributes.ReadOnly);
                     rec.Files[Rel(copy, dest)] = UpdateEngine.GitBlobSha(dest);
                     log.Detail("  + " + Rel(copy, dest));
                 }
 
-                // файлы прошлой версии, которых больше нет в репозитории
+                // файлы прошлой установки, которых больше нет в выборе или в репозитории
                 if (prev != null)
                 {
                     foreach (KeyValuePair<string, string> old in prev.Files)
@@ -263,25 +297,18 @@ namespace OsEngineUpdater.Core
                 installed.Add(rec);
                 SaveInstalled(copy, installed);
 
-                string verb = prev == null ? "установлен" : (prev.Commit == sha ? "переустановлен" : "обновлён");
-                log.Ok($"{src.DisplayName}: {verb} ({UpdateEngine.Short(sha)}) → {Shown(targetRel)}, файлов {rec.Files.Count}.");
+                string verb = prev == null ? "установлен" : (prev.Commit == co.Commit ? "переустановлен" : "обновлён");
+                string what = pick == null ? "весь репозиторий" : $"выбрано файлов: {files.Count}";
+                log.Ok($"{repo.Name}: {verb} ({UpdateEngine.Short(co.Commit)}, {what}) → {Shown(targetRel)}.");
                 return new PackageResult { Done = true, Message = verb };
-            }
-            catch (OperationCanceledException)
-            {
-                throw;
             }
             catch (Exception ex)
             {
-                return Fail(log, src, ex.Message);
-            }
-            finally
-            {
-                DeleteTree(temp);
+                return Fail(log, repo.Name, ex.Message);
             }
         }
 
-        /// <summary>Удалить установленный пакет из копии. Изменённые вами файлы удаляются только с подтверждения.</summary>
+        /// <summary>Удалить установленное из копии. Изменённые вами файлы удаляются только с подтверждения.</summary>
         public static PackageResult Uninstall(CopyInfo copy, InstalledPackage pkg, UpdateLog log, Func<string, bool> confirm)
         {
             List<string> modified = pkg.Files
@@ -304,6 +331,7 @@ namespace OsEngineUpdater.Core
             }
 
             int removed = 0;
+            string boundary = CleanupBoundary(copy, pkg.Kind, pkg.TargetDir);
 
             foreach (string key in pkg.Files.Keys)
             {
@@ -317,7 +345,7 @@ namespace OsEngineUpdater.Core
                 if (File.Exists(path))
                 {
                     File.Delete(path);
-                    RemoveEmptyDirs(CleanupBoundary(copy, pkg.Kind, pkg.TargetDir), Path.GetDirectoryName(path));
+                    RemoveEmptyDirs(boundary, Path.GetDirectoryName(path));
                     log.Detail("  x " + key);
                     removed++;
                 }
@@ -340,17 +368,17 @@ namespace OsEngineUpdater.Core
         public static string SafeName(string name)
         {
             char[] bad = Path.GetInvalidFileNameChars();
-            string s = new string(name.Select(c => bad.Contains(c) ? '_' : c).ToArray()).Trim().Trim('.');
+            string s = new string((name ?? "").Select(c => bad.Contains(c) ? '_' : c).ToArray()).Trim().Trim('.');
             return s.Length == 0 ? "Package" : s;
         }
 
-        private static string Rel(CopyInfo copy, string full)
+        public static string Rel(CopyInfo copy, string full)
         {
             string rel = Path.GetRelativePath(copy.Root, full).Replace('\\', '/');
             return rel == "." ? "" : rel;
         }
 
-        private static string Shown(string rel) => rel.Length == 0 ? "корень копии" : rel;
+        public static string Shown(string rel) => string.IsNullOrEmpty(rel) ? "корень копии" : rel;
 
         /// <summary>
         /// Граница, выше которой пустые папки не удаляются: для робота/индикатора — папка над ним
@@ -376,11 +404,11 @@ namespace OsEngineUpdater.Core
         }
 
         /// <summary>Удаление клона: файлы .git бывают только для чтения.</summary>
-        private static void DeleteTree(string dir)
+        public static void DeleteTree(string dir)
         {
             try
             {
-                if (!Directory.Exists(dir))
+                if (string.IsNullOrEmpty(dir) || !Directory.Exists(dir))
                 {
                     return;
                 }
@@ -398,9 +426,9 @@ namespace OsEngineUpdater.Core
             }
         }
 
-        private static PackageResult Fail(UpdateLog log, PackageSource src, string message)
+        private static PackageResult Fail(UpdateLog log, string name, string message)
         {
-            log.Error($"{src.DisplayName}: {message}");
+            log.Error($"{name}: {message}");
             return new PackageResult { Done = false, Message = message };
         }
 

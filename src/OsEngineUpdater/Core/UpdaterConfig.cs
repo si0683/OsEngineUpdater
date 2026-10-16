@@ -49,6 +49,14 @@ namespace OsEngineUpdater.Core
         /// <summary>Куда ставить индикаторы из своих репозиториев (относительно корня копии).</summary>
         public string IndicatorsDir { get; set; } = DefaultIndicatorsDir;
 
+        /// <summary>Куда по умолчанию ставить «свои файлы» (относительно корня копии), структура репозитория сохраняется.</summary>
+        public string FilesDir { get; set; } = DefaultFilesDir;
+
+        public const string DefaultFilesDir = @"project\OsEngine";
+
+        [JsonIgnore]
+        public string EffectiveFilesDir => string.IsNullOrWhiteSpace(FilesDir) ? DefaultFilesDir : FilesDir.Trim();
+
         [JsonIgnore]
         public string EffectiveRobotsDir => string.IsNullOrWhiteSpace(RobotsDir) ? DefaultRobotsDir : RobotsDir.Trim();
 

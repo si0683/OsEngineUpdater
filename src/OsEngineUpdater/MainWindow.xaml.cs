@@ -704,25 +704,26 @@ namespace OsEngineUpdater
             if (w.ShowDialog() == true)
             {
                 _userSettings = UserSettings.Load();
-                AppendLog(LogLevel.Ok, $"Мои репозитории сохранены: {_userSettings.Sources.Count} шт.");
+                AppendLog(LogLevel.Ok, $"Мои аккаунты и репозитории сохранены: {_userSettings.Entries.Count} шт.");
                 UpdateButtons();
             }
         }
 
         private void UpdateDevButtons(bool has, bool busy)
         {
-            int robots = _userSettings.Sources.Count(s => s.Kind == PackageKind.Robot);
-            int indicators = _userSettings.Sources.Count(s => s.Kind == PackageKind.Indicator);
-            int files = _userSettings.Sources.Count(s => s.Kind == PackageKind.Files);
+            int entries = _userSettings.Entries.Count;
             bool git = GitRunner.Available;
-            string noGit = "Нужен Git for Windows (git-scm.com) — после установки перезапустите программу";
+            bool on = has && !busy && git && entries > 0;
+            string why = !git
+                ? "Нужен Git for Windows (git-scm.com) — после установки перезапустите программу"
+                : entries == 0 ? "Сначала добавьте свой аккаунт GitHub / GitFlic или репозиторий в «Мои аккаунты и репозитории…»" : null;
 
-            BtnPickRobot.IsEnabled = has && !busy && git && robots > 0;
-            BtnPickRobot.ToolTip = !git ? noGit : robots == 0 ? "Сначала добавьте репозитории с роботами в «Мои репозитории…»" : $"Ваших роботов: {robots}";
-            BtnPickIndicator.IsEnabled = has && !busy && git && indicators > 0;
-            BtnPickIndicator.ToolTip = !git ? noGit : indicators == 0 ? "Сначала добавьте репозитории с индикаторами в «Мои репозитории…»" : $"Ваших индикаторов: {indicators}";
-            BtnPickFiles.IsEnabled = has && !busy && git && files > 0;
-            BtnPickFiles.ToolTip = !git ? noGit : files == 0 ? "Свои файлы поверх OsEngine — добавьте такой репозиторий в «Мои репозитории…»" : $"Репозиториев со своими файлами: {files}";
+            BtnPickRobot.IsEnabled = on;
+            BtnPickRobot.ToolTip = why ?? "Выбрать репозитории или отдельные файлы и поставить в папку роботов копии";
+            BtnPickIndicator.IsEnabled = on;
+            BtnPickIndicator.ToolTip = why ?? "Выбрать репозитории или отдельные файлы и поставить в папку индикаторов копии";
+            BtnPickFiles.IsEnabled = on;
+            BtnPickFiles.ToolTip = why ?? "Свои файлы в любую папку копии (можно поверх файлов OsEngine — обновление их не затрёт)";
             BtnRepos.IsEnabled = !busy;
         }
 

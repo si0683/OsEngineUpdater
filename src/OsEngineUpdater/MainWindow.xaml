@@ -107,7 +107,7 @@
                 <Button x:Name="BtnPickRobot" Content="Выбрать робот…" Click="BtnPickRobot_Click" ToolTipService.ShowOnDisabled="True"/>
                 <Button x:Name="BtnPickIndicator" Content="Выбрать индикатор…" Click="BtnPickIndicator_Click" ToolTipService.ShowOnDisabled="True"/>
                 <Button x:Name="BtnPickFiles" Content="Свои файлы…" Click="BtnPickFiles_Click" ToolTipService.ShowOnDisabled="True"/>
-                <Button x:Name="BtnRepos" Content="Мои репозитории…" Click="BtnRepos_Click"
+                <Button x:Name="BtnRepos" Content="Мои аккаунты и репозитории…" Click="BtnRepos_Click"
                         ToolTip="Свои репозитории GitHub / GitFlic с роботами, индикаторами и файлами (общие для всех копий)"/>
             </WrapPanel>
             </StackPanel>
@@ -217,7 +217,7 @@
                                 <TextBox Grid.Row="15" Grid.Column="1" x:Name="TxtIndicatorsDir" Margin="0,6,0,0" TextChanged="AnySetting_Changed"
                                          ToolTip="Относительно корня копии. По умолчанию project\OsEngine\Indicators"/>
                                 <TextBlock Grid.Row="16" Grid.Column="1" Style="{StaticResource Dim}" Margin="0,4,0,0"
-                                           Text="Сюда ставятся роботы и индикаторы из «Мои репозитории»: каждый в свою подпапку по имени репозитория."/>
+                                           Text="Сюда ставятся роботы и индикаторы из ваших репозиториев: каждый в подпапку с именем репозитория."/>
                             </Grid>
                         </ScrollViewer>
                     </DockPanel>

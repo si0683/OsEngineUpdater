@@ -51,7 +51,13 @@ namespace OsEngineUpdater.Core
             return null;
         }
 
-        public static async Task<(int Code, string Out, string Err)> RunAsync(string workDir, CancellationToken ct, params string[] args)
+        public static Task<(int Code, string Out, string Err)> RunAsync(string workDir, CancellationToken ct, params string[] args)
+        {
+            return RunWithAuthAsync(workDir, null, ct, args);
+        }
+
+        /// <param name="authHeader">HTTP-заголовок авторизации (токен) — передаётся через GIT_CONFIG_*, не виден в командной строке.</param>
+        public static async Task<(int Code, string Out, string Err)> RunWithAuthAsync(string workDir, string authHeader, CancellationToken ct, params string[] args)
         {
             if (!Available)
             {
@@ -81,6 +87,13 @@ namespace OsEngineUpdater.Core
             psi.Environment.Remove("GIT_TERMINAL_PROMPT");
             psi.Environment.Remove("GCM_INTERACTIVE");
 
+            if (!string.IsNullOrEmpty(authHeader))
+            {
+                psi.Environment["GIT_CONFIG_COUNT"] = "1";
+                psi.Environment["GIT_CONFIG_KEY_0"] = "http.extraHeader";
+                psi.Environment["GIT_CONFIG_VALUE_0"] = authHeader;
+            }
+
             using Process p = new Process { StartInfo = psi };
             p.Start();
             p.StandardInput.Close();
@@ -102,10 +115,10 @@ namespace OsEngineUpdater.Core
         }
 
         /// <summary>SHA последнего коммита ветки на сервере (git ls-remote), без скачивания.</summary>
-        public static async Task<string> RemoteHeadAsync(PackageSource src, CancellationToken ct)
+        public static async Task<string> RemoteHeadAsync(RepoInfo repo, CancellationToken ct)
         {
-            string reference = string.IsNullOrWhiteSpace(src.Branch) ? "HEAD" : "refs/heads/" + src.Branch.Trim();
-            (int code, string output, string err) = await RunAsync(null, ct, "ls-remote", src.CloneUrl, reference);
+            string reference = string.IsNullOrWhiteSpace(repo.Branch) ? "HEAD" : "refs/heads/" + repo.Branch.Trim();
+            (int code, string output, string err) = await RunWithAuthAsync(null, RepoCatalog.GitAuthHeader(repo), ct, "ls-remote", repo.CloneUrl, reference);
 
             if (code != 0)
             {
@@ -116,9 +129,9 @@ namespace OsEngineUpdater.Core
 
             if (line == null)
             {
-                throw new InvalidOperationException(string.IsNullOrWhiteSpace(src.Branch)
+                throw new InvalidOperationException(string.IsNullOrWhiteSpace(repo.Branch)
                     ? "Репозиторий пуст."
-                    : $"Ветка {src.Branch} не найдена.");
+                    : $"Ветка {repo.Branch} не найдена.");
             }
 
             return line.Substring(0, 40);
