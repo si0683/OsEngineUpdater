@@ -22,8 +22,8 @@
                             ToolTip="Указать папку существующей копии OsEngine"/>
                     <Button x:Name="BtnNewCopy" Content="Создать новую копию…" Click="BtnNewCopy_Click" Margin="0,0,0,6"
                             ToolTip="Скачать свежую копию OsEngine из GitHub в пустую папку"/>
-                    <Button x:Name="BtnRemoveCopy" Content="Убрать из списка" Click="BtnRemoveCopy_Click" Margin="0"
-                            ToolTip="Убрать копию из списка (файлы не удаляются, автообновление выключается)"/>
+                    <Button x:Name="BtnDeleteCopy" Content="Удалить копию…" Click="BtnDeleteCopy_Click" Margin="0"
+                            ToolTip="Удалить папку копии с диска (в Корзину) и выключить её автообновление"/>
                 </StackPanel>
                 <ListBox x:Name="CopiesList" SelectionChanged="CopiesList_SelectionChanged">
                     <ListBox.ItemTemplate>

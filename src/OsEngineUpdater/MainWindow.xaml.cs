@@ -187,41 +187,28 @@ namespace OsEngineUpdater
             }
         }
 
-        private void BtnRemoveCopy_Click(object sender, RoutedEventArgs e)
+        private async void BtnDeleteCopy_Click(object sender, RoutedEventArgs e)
         {
             if (_selected == null)
             {
                 return;
             }
 
-            string msg = $"Убрать копию «{_selected.Name}» из списка?\n\nФайлы не удаляются.";
+            CopyItem item = _selected;
+            DeleteCopyWindow dlg = new DeleteCopyWindow(item.Copy, _copies.Where(c => c != item).Select(c => c.Copy)) { Owner = this };
 
-            if (_selected.Auto?.Installed == true)
+            if (dlg.ShowDialog() == true)
             {
-                msg += " Автообновление этой копии будет выключено.";
-            }
-
-            if (MessageBox.Show(this, msg, "OsEngine Updater", MessageBoxButton.OKCancel, MessageBoxImage.Question) != MessageBoxResult.OK)
-            {
+                _dirty = false;
+                _copies.Remove(item);
+                SaveRegistry();
+                CopiesList.SelectedIndex = _copies.Count > 0 ? 0 : -1;
+                AppendLog(LogLevel.Ok, $"Копия {item.Root} удалена (папка в Корзине), автообновление выключено.");
                 return;
             }
 
-            try
-            {
-                if (_selected.Auto?.Installed == true)
-                {
-                    AutoTaskService.Remove(_selected.Copy.TaskName);
-                }
-            }
-            catch (Exception ex)
-            {
-                AppendLog(LogLevel.Error, "Не удалось удалить задание: " + ex.Message);
-            }
-
-            _dirty = false;
-            _copies.Remove(_selected);
-            SaveRegistry();
-            CopiesList.SelectedIndex = _copies.Count > 0 ? 0 : -1;
+            // при отмене в окне Windows задание уже могло быть снято
+            await RefreshAutoAsync(item);
         }
 
         private CopyItem AddCopy(string root)
@@ -779,7 +766,7 @@ namespace OsEngineUpdater
             BtnCancel.IsEnabled = busy;
             BtnAddCopy.IsEnabled = !busy;
             BtnNewCopy.IsEnabled = !busy;
-            BtnRemoveCopy.IsEnabled = has && !busy;
+            BtnDeleteCopy.IsEnabled = has && !busy;
             CopiesList.IsEnabled = !busy;
 
             AutoTaskInfo a = _selected?.Auto;
