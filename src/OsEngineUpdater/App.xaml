@@ -297,6 +297,29 @@
             </Setter>
         </Style>
 
+        <!-- дерево: свой шаблон по той же причине, что и у списка (светлый фон при IsEnabled=False) -->
+        <Style TargetType="TreeView">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Foreground" Value="{StaticResource Fg}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TreeView">
+                        <Border x:Name="Bd" Background="{TemplateBinding Background}">
+                            <ScrollViewer Focusable="False" CanContentScroll="False">
+                                <ItemsPresenter/>
+                            </ScrollViewer>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bd" Property="Opacity" Value="0.55"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style TargetType="ListBoxItem">
             <Setter Property="Foreground" Value="{StaticResource Fg}"/>
             <Setter Property="Margin" Value="0,0,0,6"/>

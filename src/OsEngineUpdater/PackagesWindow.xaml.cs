@@ -505,6 +505,7 @@ namespace OsEngineUpdater
             BtnReload.IsEnabled = !busy;
             ReposList.IsEnabled = !busy;
             FilesTree.IsEnabled = !busy;
+            BtnAll.IsEnabled = BtnNone.IsEnabled = !busy && _shown?.Tree != null;
             BtnClose.IsEnabled = !busy;
         }
 
