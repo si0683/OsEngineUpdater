@@ -40,6 +40,21 @@ namespace OsEngineUpdater.Core
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public List<string> ProtectedPaths { get; set; }
 
+        public const string DefaultRobotsDir = @"project\OsEngine\Robots";
+        public const string DefaultIndicatorsDir = @"project\OsEngine\Indicators";
+
+        /// <summary>Куда ставить роботов из своих репозиториев (относительно корня копии).</summary>
+        public string RobotsDir { get; set; } = DefaultRobotsDir;
+
+        /// <summary>Куда ставить индикаторы из своих репозиториев (относительно корня копии).</summary>
+        public string IndicatorsDir { get; set; } = DefaultIndicatorsDir;
+
+        [JsonIgnore]
+        public string EffectiveRobotsDir => string.IsNullOrWhiteSpace(RobotsDir) ? DefaultRobotsDir : RobotsDir.Trim();
+
+        [JsonIgnore]
+        public string EffectiveIndicatorsDir => string.IsNullOrWhiteSpace(IndicatorsDir) ? DefaultIndicatorsDir : IndicatorsDir.Trim();
+
         [JsonIgnore]
         public bool BinProtected => string.Equals(Profile, ProfileFromSource, StringComparison.OrdinalIgnoreCase);
 

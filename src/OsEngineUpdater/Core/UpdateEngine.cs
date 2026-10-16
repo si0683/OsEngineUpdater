@@ -53,7 +53,7 @@ namespace OsEngineUpdater.Core
             _copy = copy;
             _cfg = cfg;
             _log = log;
-            _protector = PathProtector.FromConfig(cfg);
+            _protector = PathProtector.FromConfig(cfg, PackageManager.InstalledFiles(copy));
             _gh = new GitHubClient(cfg);
         }
 

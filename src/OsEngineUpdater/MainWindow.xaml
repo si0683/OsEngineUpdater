@@ -86,7 +86,8 @@
             </Border>
 
             <!-- действия -->
-            <WrapPanel Grid.Row="1" Margin="0,12,0,4" VerticalAlignment="Center">
+            <StackPanel Grid.Row="1" Margin="0,12,0,4">
+            <WrapPanel VerticalAlignment="Center">
                 <Button x:Name="BtnUpdate" Content="Обновить сейчас" Style="{StaticResource AccentButton}" Click="BtnUpdate_Click"
                         ToolTip="Полная сверка с репозиторием (Mirror): добавить, обновить и удалить официальные файлы"/>
                 <Button x:Name="BtnCheck" Content="Проверить" Click="BtnCheck_Click"
@@ -101,6 +102,15 @@
                 <CheckBox x:Name="ChkForce" Content="Даже если OsEngine запущен" Margin="6,0,0,8"
                           ToolTip="Обычно обновление пропускается, пока OsEngine этой копии открыт (файлы bin заняты)"/>
             </WrapPanel>
+            <WrapPanel VerticalAlignment="Center">
+                <TextBlock Text="Мои разработки:" Style="{StaticResource Label}" Margin="0,0,10,8"/>
+                <Button x:Name="BtnPickRobot" Content="Выбрать робот…" Click="BtnPickRobot_Click" ToolTipService.ShowOnDisabled="True"/>
+                <Button x:Name="BtnPickIndicator" Content="Выбрать индикатор…" Click="BtnPickIndicator_Click" ToolTipService.ShowOnDisabled="True"/>
+                <Button x:Name="BtnPickFiles" Content="Свои файлы…" Click="BtnPickFiles_Click" ToolTipService.ShowOnDisabled="True"/>
+                <Button x:Name="BtnRepos" Content="Мои репозитории…" Click="BtnRepos_Click"
+                        ToolTip="Свои репозитории GitHub / GitFlic с роботами, индикаторами и файлами (общие для всех копий)"/>
+            </WrapPanel>
+            </StackPanel>
 
             <Grid Grid.Row="2">
                 <Grid.ColumnDefinitions>
@@ -125,6 +135,9 @@
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
                                 <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
@@ -195,6 +208,16 @@
                                 <PasswordBox Grid.Row="11" Grid.Column="1" x:Name="PwdToken" Margin="0,6,0,0" PasswordChanged="AnySetting_Changed"/>
                                 <TextBlock Grid.Row="12" Grid.Column="1" Style="{StaticResource Dim}" Margin="0,4,0,0"
                                            Text="Необязательно. Без токена GitHub даёт 60 запросов в час на компьютер — при нескольких копиях с частым авто лучше указать."/>
+
+                                <TextBlock Grid.Row="13" Grid.ColumnSpan="2" Text="Мои разработки" Style="{StaticResource H2}" FontSize="13" Margin="0,18,0,8"/>
+                                <TextBlock Grid.Row="14" Text="Папка роботов" Style="{StaticResource Label}"/>
+                                <TextBox Grid.Row="14" Grid.Column="1" x:Name="TxtRobotsDir" TextChanged="AnySetting_Changed"
+                                         ToolTip="Относительно корня копии. По умолчанию project\OsEngine\Robots"/>
+                                <TextBlock Grid.Row="15" Text="Папка индикаторов" Style="{StaticResource Label}" Margin="0,6,10,0"/>
+                                <TextBox Grid.Row="15" Grid.Column="1" x:Name="TxtIndicatorsDir" Margin="0,6,0,0" TextChanged="AnySetting_Changed"
+                                         ToolTip="Относительно корня копии. По умолчанию project\OsEngine\Indicators"/>
+                                <TextBlock Grid.Row="16" Grid.Column="1" Style="{StaticResource Dim}" Margin="0,4,0,0"
+                                           Text="Сюда ставятся роботы и индикаторы из «Мои репозитории»: каждый в свою подпапку по имени репозитория."/>
                             </Grid>
                         </ScrollViewer>
                     </DockPanel>

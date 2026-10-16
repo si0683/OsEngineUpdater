@@ -1,0 +1,107 @@
+<Window x:Class="OsEngineUpdater.ReposWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Мои репозитории" Width="900" Height="600" MinWidth="760" MinHeight="480"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False" Icon="Assets/app.ico"
+        Background="{StaticResource Bg}" Foreground="{StaticResource Fg}"
+        FontFamily="Segoe UI" FontSize="13" Closing="Window_Closing">
+    <Grid Margin="12">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="320"/>
+            <ColumnDefinition Width="12"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- список -->
+        <Border Style="{StaticResource Card}">
+            <DockPanel>
+                <TextBlock DockPanel.Dock="Top" Text="Репозитории" Style="{StaticResource H2}"/>
+                <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" Margin="0,8,0,0">
+                    <Button Content="Добавить" Click="BtnAdd_Click" Margin="0,0,8,0"/>
+                    <Button x:Name="BtnRemove" Content="Удалить из списка" Click="BtnRemove_Click" Margin="0"/>
+                </StackPanel>
+                <ListBox x:Name="SourcesList" SelectionChanged="SourcesList_SelectionChanged">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel>
+                                <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                <TextBlock Text="{Binding KindText}" Foreground="{StaticResource Accent}" FontSize="12"/>
+                                <TextBlock Text="{Binding Url}" Style="{StaticResource Dim}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </DockPanel>
+        </Border>
+
+        <!-- форма -->
+        <Border Grid.Column="2" Style="{StaticResource Card}">
+            <DockPanel>
+                <TextBlock DockPanel.Dock="Top" Text="Репозиторий" Style="{StaticResource H2}"/>
+                <TextBlock DockPanel.Dock="Bottom" Style="{StaticResource Dim}" Margin="0,10,0,0"
+                           Text="Скачивание идёт через установленный Git. Для закрытого репозитория при первой загрузке Git покажет окно входа (GitHub / GitFlic) и запомнит его. Для GitFlic в поле «Пароль» вводится токен доступа."/>
+                <Grid x:Name="FormGrid">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Text="Тип" Style="{StaticResource Label}"/>
+                    <ComboBox Grid.Column="1" x:Name="CmbKind" SelectionChanged="Form_Changed">
+                        <ComboBoxItem Tag="Robot" Content="Робот — в папку роботов копии"/>
+                        <ComboBoxItem Tag="Indicator" Content="Индикатор — в папку индикаторов копии"/>
+                        <ComboBoxItem Tag="Files" Content="Свои файлы — в любую папку копии"/>
+                    </ComboBox>
+
+                    <TextBlock Grid.Row="1" Text="Адрес" Style="{StaticResource Label}" Margin="0,10,10,0"/>
+                    <TextBox Grid.Row="1" Grid.Column="1" x:Name="TxtUrl" Margin="0,10,0,0" TextChanged="Form_Changed"/>
+                    <TextBlock Grid.Row="2" Grid.Column="1" Style="{StaticResource Dim}" Margin="0,4,0,0"
+                               Text="Например https://github.com/si0683/TemplateRobotScreenerSL или https://gitflic.ru/project/user/myrobot"/>
+
+                    <TextBlock Grid.Row="3" Text="Название" Style="{StaticResource Label}" Margin="0,10,10,0"/>
+                    <TextBox Grid.Row="3" Grid.Column="1" x:Name="TxtName" Margin="0,10,0,0" TextChanged="Form_Changed"/>
+                    <TextBlock Grid.Row="4" Grid.Column="1" x:Name="TxtNameHint" Style="{StaticResource Dim}" Margin="0,4,0,0"/>
+
+                    <TextBlock Grid.Row="5" Text="Ветка" Style="{StaticResource Label}" Margin="0,10,10,0"/>
+                    <TextBox Grid.Row="5" Grid.Column="1" x:Name="TxtBranch" Margin="0,10,0,0" TextChanged="Form_Changed"
+                             ToolTip="Пусто — ветка по умолчанию"/>
+
+                    <TextBlock Grid.Row="6" Text="Папка в репо" Style="{StaticResource Label}" Margin="0,10,10,0"/>
+                    <TextBox Grid.Row="6" Grid.Column="1" x:Name="TxtSubPath" Margin="0,10,0,0" TextChanged="Form_Changed"
+                             ToolTip="Пусто — весь репозиторий. Например Robots\MyBot, если в одном репозитории несколько разработок"/>
+
+                    <TextBlock Grid.Row="7" x:Name="LblTarget" Text="Куда в копии" Style="{StaticResource Label}" Margin="0,10,10,0"/>
+                    <TextBox Grid.Row="7" Grid.Column="1" x:Name="TxtTarget" Margin="0,10,0,0" TextChanged="Form_Changed"
+                             ToolTip="Папка относительно корня копии, например project\OsEngine"/>
+
+                    <StackPanel Grid.Row="8" Grid.Column="1" Orientation="Horizontal" Margin="0,14,0,0">
+                        <Button x:Name="BtnTest" Content="Проверить доступ" Click="BtnTest_Click"/>
+                        <TextBlock x:Name="TxtTest" VerticalAlignment="Center" Margin="4,0,0,8" TextWrapping="Wrap" MaxWidth="320"/>
+                    </StackPanel>
+                </Grid>
+            </DockPanel>
+        </Border>
+
+        <StackPanel Grid.Row="1" Grid.ColumnSpan="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <TextBlock x:Name="TxtGit" Style="{StaticResource Dim}" VerticalAlignment="Center" Margin="0,0,16,8"/>
+            <Button Content="Сохранить" Style="{StaticResource AccentButton}" Click="BtnSave_Click"/>
+            <Button Content="Отмена" IsCancel="True" Margin="0,0,0,8"/>
+        </StackPanel>
+    </Grid>
+</Window>

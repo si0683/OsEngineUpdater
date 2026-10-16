@@ -9,7 +9,8 @@ namespace OsEngineUpdater.Core
     /// </summary>
     public static class VsRefresher
     {
-        public static void Run(CopyInfo copy, UpdateLog log)
+        /// <param name="clearCache">false — только «тронуть» проект (после установки своих роботов/индикаторов).</param>
+        public static void Run(CopyInfo copy, UpdateLog log, bool clearCache = true)
         {
             string projectDir = Path.Combine(copy.Root, "project");
             string proj = Path.Combine(projectDir, @"OsEngine\OsEngine.csproj");
@@ -30,6 +31,14 @@ namespace OsEngineUpdater.Core
             foreach (Process p in devenv)
             {
                 p.Dispose();
+            }
+
+            if (!clearCache)
+            {
+                log.Ok(vsRunning
+                    ? "Visual Studio подхватит новые файлы сама. Если их не видно: правый клик по проекту OsEngine → Reload Project."
+                    : "Проект обновлён — при открытии project\\OsEngine.sln новые файлы будут видны.");
+                return;
             }
 
             if (vsRunning)

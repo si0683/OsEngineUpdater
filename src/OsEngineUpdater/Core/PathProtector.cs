@@ -9,6 +9,7 @@ namespace OsEngineUpdater.Core
     public sealed class PathProtector
     {
         private readonly List<Regex> _rules = new List<Regex>();
+        private readonly HashSet<string> _exact = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         public PathProtector(IEnumerable<string> globs)
         {
@@ -21,7 +22,8 @@ namespace OsEngineUpdater.Core
             }
         }
 
-        public static PathProtector FromConfig(UpdaterConfig cfg)
+        /// <param name="extraPaths">Точные пути (через /), например файлы, установленные из своих репозиториев.</param>
+        public static PathProtector FromConfig(UpdaterConfig cfg, IEnumerable<string> extraPaths = null)
         {
             List<string> globs = new List<string> { "**/obj/**", "**/.vs/**", "**/.git/**", "**/*.user" };
 
@@ -37,12 +39,27 @@ namespace OsEngineUpdater.Core
 
             globs.AddRange(cfg.UserProtectedPaths);
 
-            return new PathProtector(globs);
+            PathProtector protector = new PathProtector(globs);
+
+            if (extraPaths != null)
+            {
+                foreach (string p in extraPaths)
+                {
+                    protector._exact.Add(p.Replace('\\', '/'));
+                }
+            }
+
+            return protector;
         }
 
         public bool IsProtected(string relativePath)
         {
             string p = relativePath.Replace('\\', '/');
+
+            if (_exact.Contains(p))
+            {
+                return true;
+            }
 
             for (int i = 0; i < _rules.Count; i++)
             {

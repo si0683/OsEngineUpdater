@@ -23,6 +23,7 @@ namespace OsEngineUpdater
         private bool _dirty;
         private CancellationTokenSource _cts;
         private CopyItem _runningItem;
+        private UserSettings _userSettings = UserSettings.Load();
 
         public MainWindow()
         {
@@ -409,6 +410,8 @@ namespace OsEngineUpdater
             TxtRepo.Text = cfg.Repo;
             TxtBranch.Text = cfg.Branch;
             PwdToken.Password = cfg.GitHubToken ?? "";
+            TxtRobotsDir.Text = cfg.EffectiveRobotsDir;
+            TxtIndicatorsDir.Text = cfg.EffectiveIndicatorsDir;
 
             _loadingForm = false;
             SetDirty(false);
@@ -437,6 +440,8 @@ namespace OsEngineUpdater
             cfg.Repo = string.IsNullOrWhiteSpace(TxtRepo.Text) ? "OsEngine" : TxtRepo.Text.Trim();
             cfg.Branch = string.IsNullOrWhiteSpace(TxtBranch.Text) ? "master" : TxtBranch.Text.Trim();
             cfg.GitHubToken = PwdToken.Password.Trim();
+            cfg.RobotsDir = string.IsNullOrWhiteSpace(TxtRobotsDir.Text) ? UpdaterConfig.DefaultRobotsDir : TxtRobotsDir.Text.Trim();
+            cfg.IndicatorsDir = string.IsNullOrWhiteSpace(TxtIndicatorsDir.Text) ? UpdaterConfig.DefaultIndicatorsDir : TxtIndicatorsDir.Text.Trim();
             return cfg;
         }
 
@@ -664,6 +669,65 @@ namespace OsEngineUpdater
             }
         }
 
+        #region My developments
+
+        private void BtnPickRobot_Click(object sender, RoutedEventArgs e) => OpenPackages(PackageKind.Robot);
+
+        private void BtnPickIndicator_Click(object sender, RoutedEventArgs e) => OpenPackages(PackageKind.Indicator);
+
+        private void BtnPickFiles_Click(object sender, RoutedEventArgs e) => OpenPackages(PackageKind.Files);
+
+        private void OpenPackages(PackageKind kind)
+        {
+            if (_selected == null || !ConfirmUnsaved())
+            {
+                return;
+            }
+
+            UpdaterConfig cfg = UpdaterConfig.Load(_selected.Copy);
+            PackagesWindow w = new PackagesWindow(_selected.Copy, cfg, kind, _userSettings) { Owner = this };
+            w.ShowDialog();
+
+            _userSettings = UserSettings.Load();
+            UpdateButtons();
+
+            if (w.Changed)
+            {
+                LoadLogTail();
+            }
+        }
+
+        private void BtnRepos_Click(object sender, RoutedEventArgs e)
+        {
+            ReposWindow w = new ReposWindow(_userSettings) { Owner = this };
+
+            if (w.ShowDialog() == true)
+            {
+                _userSettings = UserSettings.Load();
+                AppendLog(LogLevel.Ok, $"Мои репозитории сохранены: {_userSettings.Sources.Count} шт.");
+                UpdateButtons();
+            }
+        }
+
+        private void UpdateDevButtons(bool has, bool busy)
+        {
+            int robots = _userSettings.Sources.Count(s => s.Kind == PackageKind.Robot);
+            int indicators = _userSettings.Sources.Count(s => s.Kind == PackageKind.Indicator);
+            int files = _userSettings.Sources.Count(s => s.Kind == PackageKind.Files);
+            bool git = GitRunner.Available;
+            string noGit = "Нужен Git for Windows (git-scm.com) — после установки перезапустите программу";
+
+            BtnPickRobot.IsEnabled = has && !busy && git && robots > 0;
+            BtnPickRobot.ToolTip = !git ? noGit : robots == 0 ? "Сначала добавьте репозитории с роботами в «Мои репозитории…»" : $"Ваших роботов: {robots}";
+            BtnPickIndicator.IsEnabled = has && !busy && git && indicators > 0;
+            BtnPickIndicator.ToolTip = !git ? noGit : indicators == 0 ? "Сначала добавьте репозитории с индикаторами в «Мои репозитории…»" : $"Ваших индикаторов: {indicators}";
+            BtnPickFiles.IsEnabled = has && !busy && git && files > 0;
+            BtnPickFiles.ToolTip = !git ? noGit : files == 0 ? "Свои файлы поверх OsEngine — добавьте такой репозиторий в «Мои репозитории…»" : $"Репозиториев со своими файлами: {files}";
+            BtnRepos.IsEnabled = !busy;
+        }
+
+        #endregion
+
         private void BtnOpenFolder_Click(object sender, RoutedEventArgs e)
         {
             if (_selected != null)
@@ -763,6 +827,7 @@ namespace OsEngineUpdater
             BtnAuto.IsEnabled = has;
             BtnVs.IsEnabled = has && !busy;
             BtnOpenFolder.IsEnabled = has;
+            UpdateDevButtons(has, busy);
             BtnCancel.IsEnabled = busy;
             BtnAddCopy.IsEnabled = !busy;
             BtnNewCopy.IsEnabled = !busy;
