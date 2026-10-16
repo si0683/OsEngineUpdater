@@ -12,6 +12,7 @@
     <Version>2.0.0</Version>
     <Product>OsEngine Updater</Product>
     <Authors>SidorenkoVA</Authors>
+    <ApplicationIcon>Assets/app.ico</ApplicationIcon>
 
     <!-- один exe без установки .NET -->
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
@@ -22,5 +23,9 @@
     <DebugType>embedded</DebugType>
     <SatelliteResourceLanguages>ru;en</SatelliteResourceLanguages>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets/app.ico" />
+  </ItemGroup>
 
 </Project>
