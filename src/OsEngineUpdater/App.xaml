@@ -162,24 +162,43 @@
             <Setter Property="Foreground" Value="{StaticResource Fg}"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
             <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="CheckBox">
                         <StackPanel Orientation="Horizontal" Background="Transparent">
+                            <!-- квадрат 16x16; знаки рисуются во внутренней области 14x14 (без рамки) и центрируются -->
                             <Border x:Name="Box" Width="16" Height="16" CornerRadius="3" BorderThickness="1"
-                                    BorderBrush="{StaticResource Line}" Background="{StaticResource Input}" VerticalAlignment="Center">
-                                <Path x:Name="Mark" Data="M3,8 L6.5,11.5 L13,4.5" Stroke="White" StrokeThickness="2" Visibility="Collapsed"/>
+                                    BorderBrush="#FF4A505C" Background="{StaticResource Input}" VerticalAlignment="Center"
+                                    SnapsToDevicePixels="True">
+                                <Grid Width="14" Height="14">
+                                    <Path x:Name="Mark" Data="M3,7.2 L5.8,10 L11,4.2" Stroke="White" StrokeThickness="2"
+                                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Visibility="Collapsed"/>
+                                    <Path x:Name="Dash" Data="M3.5,7 L10.5,7" Stroke="White" StrokeThickness="2"
+                                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" Visibility="Collapsed"/>
+                                </Grid>
                             </Border>
-                            <ContentPresenter Margin="8,0,0,0" VerticalAlignment="Center"/>
+                            <ContentPresenter x:Name="Content" Margin="8,0,0,0" VerticalAlignment="Center"/>
                         </StackPanel>
                         <ControlTemplate.Triggers>
+                            <Trigger Property="HasContent" Value="False">
+                                <Setter TargetName="Content" Property="Visibility" Value="Collapsed"/>
+                            </Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource Accent}"/>
+                            </Trigger>
                             <Trigger Property="IsChecked" Value="True">
                                 <Setter TargetName="Mark" Property="Visibility" Value="Visible"/>
                                 <Setter TargetName="Box" Property="Background" Value="{StaticResource Accent}"/>
                                 <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource Accent}"/>
                             </Trigger>
-                            <Trigger Property="IsMouseOver" Value="True">
+                            <Trigger Property="IsChecked" Value="{x:Null}">
+                                <Setter TargetName="Dash" Property="Visibility" Value="Visible"/>
+                                <Setter TargetName="Box" Property="Background" Value="{StaticResource Accent}"/>
                                 <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource Accent}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Box" Property="Opacity" Value="0.5"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
