@@ -137,7 +137,8 @@
             <Setter Property="BorderBrush" Value="{StaticResource Line}"/>
             <Setter Property="CaretBrush" Value="{StaticResource Fg}"/>
             <Setter Property="SelectionBrush" Value="{StaticResource Accent}"/>
-            <Setter Property="Padding" Value="6,4"/>
+            <!-- символ «●» в Segoe UI стоит на базовой линии и смотрится ниже центра — поднимаем на ~2.5 px -->
+            <Setter Property="Padding" Value="6,1,6,6"/>
             <Setter Property="MinHeight" Value="28"/>
             <Setter Property="VerticalContentAlignment" Value="Center"/>
             <Setter Property="Template">
