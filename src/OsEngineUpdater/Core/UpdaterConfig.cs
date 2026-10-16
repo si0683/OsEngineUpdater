@@ -1,0 +1,110 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
+namespace OsEngineUpdater.Core
+{
+    /// <summary>
+    /// Настройки одной копии OsEngine. Формат совместим со старым UpdateOsEngine.config.json.
+    /// </summary>
+    public sealed class UpdaterConfig
+    {
+        public const string ProfilePrebuilt = "Prebuilt";
+        public const string ProfileFromSource = "FromSource";
+        public const string ModeMirror = "Mirror";
+        public const string ModeDelta = "Delta";
+        public const string DefaultBuildCommand = "dotnet build \"project\\OsEngine\\OsEngine.csproj\" -c Debug";
+
+        public string Owner { get; set; } = "AlexWan";
+        public string Repo { get; set; } = "OsEngine";
+        public string Branch { get; set; } = "master";
+        public string GitHubToken { get; set; } = "";
+
+        /// <summary>Prebuilt — bin обновляется; FromSource — bin защищён, после обновления сборка.</summary>
+        public string Profile { get; set; } = ProfilePrebuilt;
+
+        /// <summary>Режим автообновления: Mirror (полная сверка) или Delta (только изменения).</summary>
+        public string AutoMode { get; set; } = ModeMirror;
+
+        public int AutoIntervalMinutes { get; set; } = 1440;
+
+        public List<string> UserProtectedPaths { get; set; } = new List<string>();
+
+        /// <summary>null — по профилю.</summary>
+        public bool? BuildAfterUpdate { get; set; }
+
+        /// <summary>Пусто — команда по умолчанию.</summary>
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+        public string BuildCommand { get; set; }
+
+        /// <summary>Устаревшее поле старых конфигов, читается как дополнительные исключения.</summary>
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public List<string> ProtectedPaths { get; set; }
+
+        [JsonIgnore]
+        public bool BinProtected => string.Equals(Profile, ProfileFromSource, StringComparison.OrdinalIgnoreCase);
+
+        [JsonIgnore]
+        public bool ShouldBuild => BuildAfterUpdate ?? BinProtected;
+
+        [JsonIgnore]
+        public int IntervalMinutes => AutoIntervalMinutes < 1 ? 1440 : AutoIntervalMinutes;
+
+        [JsonIgnore]
+        public bool IsDeltaMode => string.Equals(AutoMode, ModeDelta, StringComparison.OrdinalIgnoreCase);
+
+        [JsonIgnore]
+        public string EffectiveBuildCommand => string.IsNullOrWhiteSpace(BuildCommand) ? DefaultBuildCommand : BuildCommand;
+
+        private static readonly JsonSerializerOptions JsonOptions = new JsonSerializerOptions
+        {
+            WriteIndented = true,
+            PropertyNameCaseInsensitive = true,
+            ReadCommentHandling = JsonCommentHandling.Skip,
+            AllowTrailingCommas = true,
+            Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping
+        };
+
+        public static UpdaterConfig Load(CopyInfo copy)
+        {
+            string path = copy.ConfigPath;
+
+            if (!File.Exists(path) && copy.LegacyConfigPath != null)
+            {
+                // перенос старого конфига из папки утилиты
+                path = copy.LegacyConfigPath;
+            }
+
+            UpdaterConfig cfg = null;
+
+            if (File.Exists(path))
+            {
+                cfg = JsonSerializer.Deserialize<UpdaterConfig>(File.ReadAllText(path), JsonOptions);
+            }
+
+            cfg ??= new UpdaterConfig();
+            cfg.UserProtectedPaths ??= new List<string>();
+            cfg.Owner = string.IsNullOrWhiteSpace(cfg.Owner) ? "AlexWan" : cfg.Owner.Trim();
+            cfg.Repo = string.IsNullOrWhiteSpace(cfg.Repo) ? "OsEngine" : cfg.Repo.Trim();
+            cfg.Branch = string.IsNullOrWhiteSpace(cfg.Branch) ? "master" : cfg.Branch.Trim();
+            cfg.GitHubToken ??= "";
+
+            if (!File.Exists(copy.ConfigPath))
+            {
+                cfg.Save(copy);
+            }
+
+            return cfg;
+        }
+
+        public void Save(CopyInfo copy)
+        {
+            Directory.CreateDirectory(copy.DataDir);
+            File.WriteAllText(copy.ConfigPath, JsonSerializer.Serialize(this, JsonOptions));
+        }
+
+        public UpdaterConfig Clone()
+        {
+            return JsonSerializer.Deserialize<UpdaterConfig>(JsonSerializer.Serialize(this, JsonOptions), JsonOptions);
+        }
+    }
+}

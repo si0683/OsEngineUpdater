@@ -1,0 +1,7 @@
+bin/
+obj/
+*.user
+.vs/
+# готовый exe выкладывается в GitHub Releases
+/OsEngineUpdater.exe
+/publish/
