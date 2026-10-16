@@ -143,7 +143,7 @@
                         </TreeView>
                         <TextBlock x:Name="TxtFilesEmpty" Style="{StaticResource Dim}" FontSize="13" TextAlignment="Center"
                                    HorizontalAlignment="Center" VerticalAlignment="Center" Margin="16"
-                                   Text="Нажмите на репозиторий слева, чтобы увидеть его файлы и выбрать нужные.&#x0a;Отмеченный галочкой репозиторий без выбора файлов ставится целиком."/>
+                                   Text="Нажмите на репозиторий слева, чтобы увидеть его файлы и выбрать нужные.&#x0a;Целиком робот или индикатор ставится как git-репозиторий: можно дорабатывать и делать commit/push из Visual Studio. Выбранные отдельные файлы просто копируются."/>
                     </Grid>
                 </DockPanel>
             </Border>

@@ -326,8 +326,8 @@ namespace OsEngineUpdater
             int total = _shown.Checkout.Files.Count;
             int sel = _shown.SelectedFiles().Count;
             TxtFilesInfo.Text = sel == total
-                ? $"отмечены все файлы ({total}) — репозиторий ставится целиком"
-                : $"отмечено файлов: {sel} из {total}";
+                ? $"отмечены все файлы ({total}) — " + (_kind == PackageKind.Files ? "ставится целиком" : "ставится целиком как git-репозиторий (commit/push из VS)")
+                : $"отмечено файлов: {sel} из {total} — будут скопированы без git";
         }
 
         private void BtnAll_Click(object sender, RoutedEventArgs e) => _shown?.SetAll(true);
@@ -369,19 +369,34 @@ namespace OsEngineUpdater
 
                 foreach (RepoRow r in rows)
                 {
-                    if (r.Checkout == null)
-                    {
-                        await Dispatcher.InvokeAsync(() => FetchRowAsync(r)).Task.Unwrap();
-                    }
-
-                    if (r.Checkout == null)
-                    {
-                        continue;
-                    }
-
                     IReadOnlyCollection<string> selected = Dispatcher.Invoke(() => r.SelectionForInstall());
-                    PackageResult res = PackageManager.Install(_copy, _cfg, r.Checkout, _kind, filesTarget, selected, log,
-                        msg => Dispatcher.Invoke(() => Confirm(msg)));
+                    PackageResult res;
+
+                    if (PackageManager.UseGitMode(_copy, _cfg, r.Repo, _kind, selected))
+                    {
+                        // целиком — рабочий git-репозиторий (clone / pull)
+                        if (selected != null)
+                        {
+                            log.Warn($"{r.Name}: папка уже git-репозиторий — обновляется целиком (git pull), выбор файлов не применяется.");
+                        }
+
+                        res = await PackageManager.InstallGitAsync(_copy, _cfg, r.Repo, _kind, log, CancellationToken.None);
+                    }
+                    else
+                    {
+                        if (r.Checkout == null)
+                        {
+                            await Dispatcher.InvokeAsync(() => FetchRowAsync(r)).Task.Unwrap();
+                        }
+
+                        if (r.Checkout == null)
+                        {
+                            continue;
+                        }
+
+                        res = PackageManager.Install(_copy, _cfg, r.Checkout, _kind, filesTarget, selected, log,
+                            msg => Dispatcher.Invoke(() => Confirm(msg)));
+                    }
 
                     if (res.Done)
                     {
@@ -604,7 +619,7 @@ namespace OsEngineUpdater
             }
             else
             {
-                string part = Installed.Selected == null ? "целиком" : $"файлов: {Installed.Selected.Count}";
+                string part = Installed.Git ? "git-репозиторий" : (Installed.Selected == null ? "целиком" : $"файлов: {Installed.Selected.Count}");
                 string when = DateTime.TryParse(Installed.InstalledUtc, null, System.Globalization.DateTimeStyles.RoundtripKind, out DateTime dt)
                     ? dt.ToLocalTime().ToString("dd.MM.yyyy HH:mm")
                     : "";

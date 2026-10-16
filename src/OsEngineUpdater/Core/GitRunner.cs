@@ -87,11 +87,16 @@ namespace OsEngineUpdater.Core
             psi.Environment.Remove("GIT_TERMINAL_PROMPT");
             psi.Environment.Remove("GCM_INTERACTIVE");
 
+            // длинные пути: без core.longpaths git для Windows падает на путях > 260 символов
+            // (например, «invalid index-pack output» при клонировании в глубокую папку)
+            psi.Environment["GIT_CONFIG_COUNT"] = string.IsNullOrEmpty(authHeader) ? "1" : "2";
+            psi.Environment["GIT_CONFIG_KEY_0"] = "core.longpaths";
+            psi.Environment["GIT_CONFIG_VALUE_0"] = "true";
+
             if (!string.IsNullOrEmpty(authHeader))
             {
-                psi.Environment["GIT_CONFIG_COUNT"] = "1";
-                psi.Environment["GIT_CONFIG_KEY_0"] = "http.extraHeader";
-                psi.Environment["GIT_CONFIG_VALUE_0"] = authHeader;
+                psi.Environment["GIT_CONFIG_KEY_1"] = "http.extraHeader";
+                psi.Environment["GIT_CONFIG_VALUE_1"] = authHeader;
             }
 
             using Process p = new Process { StartInfo = psi };
