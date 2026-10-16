@@ -103,7 +103,7 @@
                           ToolTip="Обычно обновление пропускается, пока OsEngine этой копии открыт (файлы bin заняты)"/>
             </WrapPanel>
             <WrapPanel VerticalAlignment="Center">
-                <TextBlock Text="Мои разработки:" Style="{StaticResource Label}" Margin="0,0,10,8"/>
+                <TextBlock Text="Моя разработка:" Style="{StaticResource Label}" Margin="0,0,10,8"/>
                 <Button x:Name="BtnPickRobot" Content="Выбрать робот…" Click="BtnPickRobot_Click" ToolTipService.ShowOnDisabled="True"/>
                 <Button x:Name="BtnPickIndicator" Content="Выбрать индикатор…" Click="BtnPickIndicator_Click" ToolTipService.ShowOnDisabled="True"/>
                 <Button x:Name="BtnPickFiles" Content="Свои файлы…" Click="BtnPickFiles_Click" ToolTipService.ShowOnDisabled="True"/>
@@ -209,7 +209,7 @@
                                 <TextBlock Grid.Row="12" Grid.Column="1" Style="{StaticResource Dim}" Margin="0,4,0,0"
                                            Text="Необязательно. Без токена GitHub даёт 60 запросов в час на компьютер — при нескольких копиях с частым авто лучше указать."/>
 
-                                <TextBlock Grid.Row="13" Grid.ColumnSpan="2" Text="Мои разработки" Style="{StaticResource H2}" FontSize="13" Margin="0,18,0,8"/>
+                                <TextBlock Grid.Row="13" Grid.ColumnSpan="2" Text="Моя разработка" Style="{StaticResource H2}" FontSize="13" Margin="0,18,0,8"/>
                                 <TextBlock Grid.Row="14" Text="Папка роботов" Style="{StaticResource Label}"/>
                                 <TextBox Grid.Row="14" Grid.Column="1" x:Name="TxtRobotsDir" TextChanged="AnySetting_Changed"
                                          ToolTip="Относительно корня копии. По умолчанию project\OsEngine\Robots"/>
