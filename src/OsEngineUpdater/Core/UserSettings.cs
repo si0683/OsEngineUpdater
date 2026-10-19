@@ -145,6 +145,12 @@ namespace OsEngineUpdater.Core
     {
         public List<SourceEntry> Entries { get; set; } = new List<SourceEntry>();
 
+        /// <summary>Ширина списка копий в главном окне (0 — по умолчанию).</summary>
+        public double CopiesPaneWidth { get; set; }
+
+        /// <summary>Ширина блока «Настройки копии» (0 — по умолчанию); остальное занимает лог.</summary>
+        public double SettingsPaneWidth { get; set; }
+
         /// <summary>Обновлять саму программу из её репозитория (GitHub Releases).</summary>
         public bool SelfUpdateEnabled { get; set; } = true;
 

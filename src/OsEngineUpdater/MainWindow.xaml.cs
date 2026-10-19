@@ -31,6 +31,7 @@ namespace OsEngineUpdater
             InitializeComponent();
             CopiesList.ItemsSource = _copies;
             LstProtected.ItemsSource = _protected;
+            RestorePaneWidths();
             _protected.CollectionChanged += (_, _) => UpdateProtectedEmpty();
             SetFormEnabled(false);
         }
@@ -514,6 +515,81 @@ namespace OsEngineUpdater
         }
 
         private void BtnSave_Click(object sender, RoutedEventArgs e) => SaveSettings();
+
+        #region Pane widths
+
+        private const double DefaultCopiesWidth = 290;
+        private const double DefaultSettingsWidth = 410;
+
+        private void RestorePaneWidths()
+        {
+            if (_userSettings.CopiesPaneWidth >= ColCopies.MinWidth && _userSettings.CopiesPaneWidth <= 520)
+            {
+                ColCopies.Width = new GridLength(_userSettings.CopiesPaneWidth);
+            }
+
+            if (_userSettings.SettingsPaneWidth >= ColSettings.MinWidth && _userSettings.SettingsPaneWidth <= 1600)
+            {
+                ColSettings.Width = new GridLength(_userSettings.SettingsPaneWidth);
+            }
+        }
+
+        /// <summary>
+        /// Ограничить максимумы под текущий размер окна: правой части — не меньше 700 px, логу — не меньше 300 px.
+        /// (Минимумы у растягивающихся колонок задавать нельзя: при нехватке места разметка зацикливается.)
+        /// </summary>
+        private void Panes_SizeChanged(object sender, SizeChangedEventArgs e) => ClampPanes();
+
+        private void ClampPanes()
+        {
+            double total = ((FrameworkElement)Content).ActualWidth;
+
+            if (total > 0)
+            {
+                ColCopies.MaxWidth = Math.Max(ColCopies.MinWidth, Math.Min(520, total - 12 - 700));
+            }
+
+            double right = RightPanel.ActualWidth;
+
+            if (right > 0)
+            {
+                ColSettings.MaxWidth = Math.Max(ColSettings.MinWidth, right - 12 - 300);
+            }
+        }
+
+        private void Splitter_DragCompleted(object sender, System.Windows.Controls.Primitives.DragCompletedEventArgs e) => SavePaneWidths();
+
+        private void SplitCopies_DoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            ColCopies.Width = new GridLength(DefaultCopiesWidth);
+            SavePaneWidths();
+        }
+
+        private void SplitLog_DoubleClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            ColSettings.Width = new GridLength(DefaultSettingsWidth);
+            SavePaneWidths();
+        }
+
+        /// <summary>Запомнить ширины (перечитывая настройки, чтобы не затереть остальное).</summary>
+        private void SavePaneWidths()
+        {
+            try
+            {
+                UserSettings s = UserSettings.Load();
+                s.CopiesPaneWidth = Math.Round(ColCopies.ActualWidth);
+                s.SettingsPaneWidth = Math.Round(ColSettings.ActualWidth);
+                s.Save();
+                _userSettings.CopiesPaneWidth = s.CopiesPaneWidth;
+                _userSettings.SettingsPaneWidth = s.SettingsPaneWidth;
+            }
+            catch
+            {
+                // ширины — удобство
+            }
+        }
+
+        #endregion
 
         #region Do not overwrite
 

@@ -393,6 +393,36 @@
             </Style.Triggers>
         </Style>
 
+        <Style x:Key="Splitter" TargetType="GridSplitter">
+            <Setter Property="Width" Value="12"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="VerticalAlignment" Value="Stretch"/>
+            <Setter Property="ResizeBehavior" Value="PreviousAndNext"/>
+            <Setter Property="ResizeDirection" Value="Columns"/>
+            <Setter Property="Cursor" Value="SizeWE"/>
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="ToolTip" Value="Потяните, чтобы изменить ширину. Двойной щелчок — как было"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="GridSplitter">
+                        <Border Background="Transparent">
+                            <Border x:Name="Line" Width="2" CornerRadius="1" HorizontalAlignment="Center" Margin="0,24"
+                                    Background="{StaticResource Line}" Opacity="0"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Line" Property="Opacity" Value="1"/>
+                            </Trigger>
+                            <Trigger Property="IsDragging" Value="True">
+                                <Setter TargetName="Line" Property="Background" Value="{StaticResource Accent}"/>
+                                <Setter TargetName="Line" Property="Opacity" Value="1"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <Style TargetType="ToolTip">
             <Setter Property="Background" Value="{StaticResource Panel2}"/>
             <Setter Property="Foreground" Value="{StaticResource Fg}"/>
