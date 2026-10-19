@@ -57,10 +57,8 @@ namespace OsEngineUpdater
                 await RefreshAutoAsync(item);
             }
 
-            foreach (CopyItem item in _copies.ToList())
-            {
-                await RefreshBehindAsync(item, false);
-            }
+            InitWatch();
+            await CheckAllAsync(false);
         }
 
         private void CopiesList_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -201,6 +199,7 @@ namespace OsEngineUpdater
             if (dlg.ShowDialog() == true)
             {
                 _dirty = false;
+                DetachWatcher(item);
                 _copies.Remove(item);
                 SaveRegistry();
                 CopiesList.SelectedIndex = _copies.Count > 0 ? 0 : -1;
@@ -223,6 +222,7 @@ namespace OsEngineUpdater
 
             CopyItem item = new CopyItem(root);
             _copies.Add(item);
+            AttachWatcher(item);
             SaveRegistry();
             return item;
         }
@@ -264,7 +264,8 @@ namespace OsEngineUpdater
             }
         }
 
-        private async Task RefreshBehindAsync(CopyItem item, bool force)
+        /// <param name="knownHead">Последний коммит, если уже известен (общая проверка нескольких копий).</param>
+        private async Task RefreshBehindAsync(CopyItem item, bool force, string knownHead = null)
         {
             if (!force && item.BehindCheckedAt != null && DateTime.Now - item.BehindCheckedAt < TimeSpan.FromMinutes(5))
             {
@@ -275,8 +276,9 @@ namespace OsEngineUpdater
             {
                 UpdaterConfig cfg = UpdaterConfig.Load(item.Copy);
                 using UpdateEngine engine = new UpdateEngine(item.Copy, cfg, new UpdateLog(null, null));
-                (int? behind, _) = await engine.GetBehindAsync(CancellationToken.None);
+                (int? behind, string head) = await engine.GetBehindAsync(CancellationToken.None, knownHead);
                 item.Behind = behind;
+                item.LastHead = head;
                 item.BehindError = null;
             }
             catch (Exception ex)
@@ -291,6 +293,9 @@ namespace OsEngineUpdater
             {
                 UpdateStatusCards();
             }
+
+            UpdateWatchText();
+            UpdateWatchTitle();
         }
 
         private void UpdateStatusCards()
@@ -978,6 +983,9 @@ namespace OsEngineUpdater
         public AutoTaskInfo Auto { get; set; }
         public string AutoError { get; set; }
         public int? Behind { get; set; }
+
+        /// <summary>Последний коммит источника при последней проверке.</summary>
+        public string LastHead { get; set; }
         public string BehindError { get; set; }
         public DateTime? BehindCheckedAt { get; set; }
 

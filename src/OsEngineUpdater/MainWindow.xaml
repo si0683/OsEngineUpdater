@@ -16,7 +16,19 @@
         <!-- копии -->
         <Border Style="{StaticResource Card}">
             <DockPanel>
-                <TextBlock DockPanel.Dock="Top" Text="Копии OsEngine" Style="{StaticResource H2}"/>
+                <TextBlock DockPanel.Dock="Top" Text="Копии OsEngine" Style="{StaticResource H2}" Margin="0,0,0,6"/>
+                <DockPanel DockPanel.Dock="Top" Margin="0,0,0,2">
+                    <ComboBox DockPanel.Dock="Right" x:Name="CmbWatch" Width="104" SelectionChanged="CmbWatch_SelectionChanged"
+                              ToolTip="Как часто проверять GitHub на новые коммиты OsEngine для всех копий, пока окно открыто">
+                        <ComboBoxItem Tag="0" Content="не проверять"/>
+                        <ComboBoxItem Tag="5" Content="5 мин"/>
+                        <ComboBoxItem Tag="10" Content="10 мин"/>
+                        <ComboBoxItem Tag="30" Content="30 мин"/>
+                        <ComboBoxItem Tag="60" Content="1 час"/>
+                    </ComboBox>
+                    <TextBlock Text="Проверять GitHub" Style="{StaticResource Label}"/>
+                </DockPanel>
+                <TextBlock DockPanel.Dock="Top" x:Name="TxtWatch" Style="{StaticResource Dim}" Margin="0,0,0,10"/>
                 <StackPanel DockPanel.Dock="Bottom" Margin="0,8,0,0">
                     <Button x:Name="BtnAddCopy" Content="Добавить копию…" Click="BtnAddCopy_Click" Margin="0,0,0,6"
                             ToolTip="Указать папку существующей копии OsEngine"/>

@@ -171,6 +171,9 @@ namespace OsEngineUpdater.Core
     {
         public List<SourceEntry> Entries { get; set; } = new List<SourceEntry>();
 
+        /// <summary>Как часто окно проверяет GitHub на новые коммиты для всех копий (минуты, 0 — не проверять).</summary>
+        public int WatchMinutes { get; set; } = 10;
+
         /// <summary>Формат прошлой версии (отдельные репозитории с типом) — переносится в Entries.</summary>
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
         public List<LegacySource> Sources { get; set; }

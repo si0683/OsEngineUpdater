@@ -42,6 +42,11 @@ namespace OsEngineUpdater.Core
         private readonly PathProtector _protector;
         private readonly GitHubClient _gh;
 
+        private static readonly ConcurrentDictionary<string, int> AheadCache = new ConcurrentDictionary<string, int>();
+
+        /// <summary>Последний коммит ветки (для общей проверки нескольких копий).</summary>
+        public Task<string> GetHeadShaAsync(CancellationToken ct) => _gh.GetHeadShaAsync(ct);
+
         /// <summary>Обновлять даже если OsEngine этой копии запущен.</summary>
         public bool Force { get; set; }
 
@@ -128,9 +133,10 @@ namespace OsEngineUpdater.Core
         }
 
         /// <summary>На сколько коммитов копия отстаёт от GitHub (по state.json). null — неизвестно.</summary>
-        public async Task<(int? Behind, string HeadSha)> GetBehindAsync(CancellationToken ct)
+        /// <param name="knownHead">Последний коммит, если уже известен (одна проверка на несколько копий с общим источником).</param>
+        public async Task<(int? Behind, string HeadSha)> GetBehindAsync(CancellationToken ct, string knownHead = null)
         {
-            string head = await _gh.GetHeadShaAsync(ct);
+            string head = knownHead ?? await _gh.GetHeadShaAsync(ct);
             UpdaterState state = _copy.LoadState();
 
             if (state == null || string.IsNullOrEmpty(state.LastSha))
@@ -143,8 +149,16 @@ namespace OsEngineUpdater.Core
                 return (0, head);
             }
 
-            CompareResult cmp = await _gh.CompareAsync(state.LastSha, head, ct);
-            return (cmp.AheadBy, head);
+            // результат сравнения двух коммитов не меняется — запоминаем, чтобы не тратить лимит API
+            string key = _gh.Source + ":" + state.LastSha + ".." + head;
+
+            if (!AheadCache.TryGetValue(key, out int ahead))
+            {
+                ahead = (await _gh.CompareAsync(state.LastSha, head, ct)).AheadBy;
+                AheadCache[key] = ahead;
+            }
+
+            return (ahead, head);
         }
 
         #region Check
