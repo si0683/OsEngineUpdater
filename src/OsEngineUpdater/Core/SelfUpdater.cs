@@ -108,7 +108,20 @@ namespace OsEngineUpdater.Core
             return (true, null);
         }
 
-        /// <summary>Последний релиз репозитория программы (один запрос к GitHub API).</summary>
+        private static readonly HttpClient NoRedirect = CreateNoRedirect();
+
+        private static HttpClient CreateNoRedirect()
+        {
+            HttpClient h = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }) { Timeout = TimeSpan.FromSeconds(60) };
+            h.DefaultRequestHeaders.UserAgent.ParseAdd("OsEngine-Updater/" + CurrentVersion);
+            return h;
+        }
+
+        /// <summary>
+        /// Последний релиз программы. Без GitHub API: страница releases/latest перенаправляет на последний тег,
+        /// файлы берутся по прямым ссылкам релиза — лимит API (60 запросов в час на IP) не тратится,
+        /// что важно, когда программ много и они за одним адресом.
+        /// </summary>
         public static async Task<ReleaseInfo> GetLatestAsync(string repo, CancellationToken ct)
         {
             repo = string.IsNullOrWhiteSpace(repo) ? DefaultRepo : repo.Trim().Trim('/');
@@ -116,11 +129,61 @@ namespace OsEngineUpdater.Core
             // для проверки обновления на тестовом релизе: адрес JSON в формате GitHub API
             string api = Environment.GetEnvironmentVariable("OSENGINEUPDATER_RELEASE_API");
 
-            if (string.IsNullOrWhiteSpace(api))
+            if (!string.IsNullOrWhiteSpace(api))
             {
-                api = $"https://api.github.com/repos/{repo}/releases/latest";
+                return await GetLatestFromApiAsync(api, ct);
             }
 
+            using HttpResponseMessage page = await NoRedirect.GetAsync($"https://github.com/{repo}/releases/latest", ct);
+
+            if (page.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                return null;
+            }
+
+            Uri location = page.Headers.Location;
+
+            if ((int)page.StatusCode / 100 != 3 || location == null)
+            {
+                throw new InvalidOperationException($"GitHub: HTTP {(int)page.StatusCode} при проверке новой версии программы");
+            }
+
+            // https://github.com/<repo>/releases/tag/v2.1.0; без релизов — перенаправление на /releases
+            string path = location.IsAbsoluteUri ? location.AbsolutePath : location.OriginalString;
+            int at = path.IndexOf("/releases/tag/", StringComparison.OrdinalIgnoreCase);
+
+            if (at < 0)
+            {
+                return null;
+            }
+
+            string tag = Uri.UnescapeDataString(path.Substring(at + "/releases/tag/".Length).Trim('/'));
+            string baseUrl = $"https://github.com/{repo}/releases/download/{Uri.EscapeDataString(tag)}/";
+
+            using HttpResponseMessage shaResp = await Http.GetAsync(baseUrl + ExeName + ".sha256", ct);
+
+            if (shaResp.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                return null; // в релизе нет exe с контрольной суммой
+            }
+
+            shaResp.EnsureSuccessStatusCode();
+            string sha = (await shaResp.Content.ReadAsStringAsync(ct)).Trim().Split(' ', '\t', '\r', '\n')[0];
+
+            return new ReleaseInfo
+            {
+                Version = ParseVersion(tag),
+                Tag = tag,
+                ExeUrl = baseUrl + ExeName,
+                Sha256 = sha.Trim().ToLowerInvariant(),
+                Notes = "",
+                HtmlUrl = $"https://github.com/{repo}/releases/tag/{Uri.EscapeDataString(tag)}"
+            };
+        }
+
+        /// <summary>Релиз из JSON в формате GitHub API (для проверки на тестовом релизе).</summary>
+        private static async Task<ReleaseInfo> GetLatestFromApiAsync(string api, CancellationToken ct)
+        {
             using HttpRequestMessage req = new HttpRequestMessage(HttpMethod.Get, api);
             req.Headers.Accept.ParseAdd("application/vnd.github+json");
             using HttpResponseMessage resp = await Http.SendAsync(req, ct);
