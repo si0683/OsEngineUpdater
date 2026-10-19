@@ -39,6 +39,14 @@
             <Setter Property="TextWrapping" Value="Wrap"/>
         </Style>
 
+        <!-- заголовок поля в форме «в одну колонку»: над полем -->
+        <Style x:Key="FieldTitle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource Fg}"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="Margin" Value="0,0,0,6"/>
+        </Style>
+
         <Style x:Key="Label" TargetType="TextBlock">
             <Setter Property="Foreground" Value="{StaticResource FgDim}"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
@@ -137,8 +145,11 @@
             <Setter Property="BorderBrush" Value="{StaticResource Line}"/>
             <Setter Property="CaretBrush" Value="{StaticResource Fg}"/>
             <Setter Property="SelectionBrush" Value="{StaticResource Accent}"/>
-            <!-- символ «●» в Segoe UI стоит на базовой линии и смотрится ниже центра — поднимаем на ~2.5 px -->
-            <Setter Property="Padding" Value="6,1,6,6"/>
+            <!-- «●» в Segoe UI стоит ниже центра; «•» в Consolas — ровно по центру строки, поэтому отступы
+                 симметричные, как у TextBox, и курсор тоже по центру (несимметричный отступ прижимал его к верху) -->
+            <Setter Property="PasswordChar" Value="•"/>
+            <Setter Property="FontFamily" Value="Consolas"/>
+            <Setter Property="Padding" Value="6,4"/>
             <Setter Property="MinHeight" Value="28"/>
             <Setter Property="VerticalContentAlignment" Value="Center"/>
             <Setter Property="Template">

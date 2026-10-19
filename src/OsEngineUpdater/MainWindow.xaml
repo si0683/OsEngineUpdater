@@ -148,125 +148,109 @@
                             <TextBlock x:Name="TxtDirty" VerticalAlignment="Center" Style="{StaticResource Dim}"/>
                         </StackPanel>
                         <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,0,8,0">
-                            <Grid x:Name="SettingsGrid">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="116"/>
-                                    <ColumnDefinition Width="*"/>
-                                </Grid.ColumnDefinitions>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                </Grid.RowDefinitions>
-
-                                <TextBlock Grid.Row="0" Text="Как запускаете OsEngine" Style="{StaticResource Label}" TextWrapping="Wrap"/>
-                                <ComboBox Grid.Row="0" Grid.Column="1" x:Name="CmbProfile" SelectionChanged="AnySetting_Changed" VerticalAlignment="Center">
+                            <!-- одна колонка: заголовок поля, под ним поле, под ним пояснение -->
+                            <StackPanel x:Name="SettingsGrid">
+                                <TextBlock Text="Как вы запускаете OsEngine?" Style="{StaticResource FieldTitle}"/>
+                                <ComboBox x:Name="CmbProfile" SelectionChanged="AnySetting_Changed">
                                     <ComboBoxItem Tag="Prebuilt" Content="Готовый OsEngine.exe"/>
                                     <ComboBoxItem Tag="FromSource" Content="Собираю сам в Visual Studio"/>
                                 </ComboBox>
-                                <TextBlock Grid.Row="1" Grid.Column="1" x:Name="TxtProfileHint" Style="{StaticResource Dim}" Margin="0,4,0,10"/>
+                                <TextBlock x:Name="TxtProfileHint" Style="{StaticResource Dim}" Margin="0,6,0,0"/>
 
-                                <TextBlock Grid.Row="2" Text="Не перезаписывать" Style="{StaticResource Label}" TextWrapping="Wrap" VerticalAlignment="Top" Margin="0,24,10,0"/>
-                                <StackPanel Grid.Row="2" Grid.Column="1" Margin="0,16,0,0">
-                                    <Border Background="{StaticResource Input}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="3"
-                                            MinHeight="34" MaxHeight="120">
-                                        <Grid>
-                                            <ListBox x:Name="LstProtected" Margin="3" SelectionMode="Extended"
-                                                     ScrollViewer.VerticalScrollBarVisibility="Auto" KeyDown="LstProtected_KeyDown">
-                                                <ListBox.ItemContainerStyle>
-                                                    <Style TargetType="ListBoxItem">
-                                                        <Setter Property="Foreground" Value="{StaticResource Fg}"/>
-                                                        <Setter Property="Template">
-                                                            <Setter.Value>
-                                                                <ControlTemplate TargetType="ListBoxItem">
-                                                                    <Border x:Name="Bd" Background="Transparent" CornerRadius="3" Padding="6,3">
-                                                                        <ContentPresenter/>
-                                                                    </Border>
-                                                                    <ControlTemplate.Triggers>
-                                                                        <Trigger Property="IsMouseOver" Value="True">
-                                                                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource Hover}"/>
-                                                                        </Trigger>
-                                                                        <Trigger Property="IsSelected" Value="True">
-                                                                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource Panel2}"/>
-                                                                        </Trigger>
-                                                                    </ControlTemplate.Triggers>
-                                                                </ControlTemplate>
-                                                            </Setter.Value>
-                                                        </Setter>
-                                                    </Style>
-                                                </ListBox.ItemContainerStyle>
-                                                <ListBox.ItemTemplate>
-                                                    <DataTemplate>
-                                                        <StackPanel Orientation="Horizontal" ToolTip="{Binding Pattern}">
-                                                            <TextBlock Text="{Binding Icon}" Foreground="{StaticResource FgDim}" Margin="0,0,6,0"/>
-                                                            <TextBlock Text="{Binding Display}" TextTrimming="CharacterEllipsis"/>
-                                                        </StackPanel>
-                                                    </DataTemplate>
-                                                </ListBox.ItemTemplate>
-                                            </ListBox>
-                                            <TextBlock x:Name="TxtProtectedEmpty" Text="пусто — обновляются все файлы"
-                                                       Style="{StaticResource Dim}" VerticalAlignment="Center" Margin="10,0" IsHitTestVisible="False"/>
-                                        </Grid>
-                                    </Border>
-                                    <UniformGrid Rows="1" Margin="0,6,-6,0">
-                                        <Button Content="+ Файл…" ToolTip="Выбрать официальные файлы, которые не нужно перезаписывать" Click="BtnProtectFile_Click" Padding="4,2" MinHeight="26" Margin="0,0,6,0"/>
-                                        <Button Content="+ Папка…" ToolTip="Выбрать папки: всё внутри них не будет перезаписываться" Click="BtnProtectFolder_Click" Padding="4,2" MinHeight="26" Margin="0,0,6,0"/>
-                                        <Button x:Name="BtnProtectRemove" Content="Убрать" Click="BtnProtectRemove_Click" Padding="4,2" MinHeight="26" Margin="0,0,6,0"/>
-                                    </UniformGrid>
-                                    <TextBlock Style="{StaticResource Dim}" Margin="0,4,0,0"
-                                               Text="Официальные файлы OsEngine, которые вы изменили сами: обновление их не перезапишет. Свои новые файлы и папки добавлять не нужно — они и так не трогаются."/>
-                                </StackPanel>
+                                <TextBlock Text="Какие файлы не перезаписывать?" Style="{StaticResource FieldTitle}" Margin="0,20,0,6"/>
+                                <Border Background="{StaticResource Input}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="3"
+                                        MinHeight="34" MaxHeight="120">
+                                    <Grid>
+                                        <ListBox x:Name="LstProtected" Margin="3" SelectionMode="Extended"
+                                                 ScrollViewer.VerticalScrollBarVisibility="Auto" KeyDown="LstProtected_KeyDown">
+                                            <ListBox.ItemContainerStyle>
+                                                <Style TargetType="ListBoxItem">
+                                                    <Setter Property="Foreground" Value="{StaticResource Fg}"/>
+                                                    <Setter Property="Template">
+                                                        <Setter.Value>
+                                                            <ControlTemplate TargetType="ListBoxItem">
+                                                                <Border x:Name="Bd" Background="Transparent" CornerRadius="3" Padding="6,3">
+                                                                    <ContentPresenter/>
+                                                                </Border>
+                                                                <ControlTemplate.Triggers>
+                                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                                        <Setter TargetName="Bd" Property="Background" Value="{StaticResource Hover}"/>
+                                                                    </Trigger>
+                                                                    <Trigger Property="IsSelected" Value="True">
+                                                                        <Setter TargetName="Bd" Property="Background" Value="{StaticResource Panel2}"/>
+                                                                    </Trigger>
+                                                                </ControlTemplate.Triggers>
+                                                            </ControlTemplate>
+                                                        </Setter.Value>
+                                                    </Setter>
+                                                </Style>
+                                            </ListBox.ItemContainerStyle>
+                                            <ListBox.ItemTemplate>
+                                                <DataTemplate>
+                                                    <StackPanel Orientation="Horizontal" ToolTip="{Binding Pattern}">
+                                                        <TextBlock Text="{Binding Icon}" Foreground="{StaticResource FgDim}" Margin="0,0,6,0"/>
+                                                        <TextBlock Text="{Binding Display}" TextTrimming="CharacterEllipsis"/>
+                                                    </StackPanel>
+                                                </DataTemplate>
+                                            </ListBox.ItemTemplate>
+                                        </ListBox>
+                                        <TextBlock x:Name="TxtProtectedEmpty" Text="пусто — обновляются все файлы"
+                                                   Style="{StaticResource Dim}" VerticalAlignment="Center" Margin="10,0" IsHitTestVisible="False"/>
+                                    </Grid>
+                                </Border>
+                                <UniformGrid Rows="1" Margin="0,6,-6,0">
+                                    <Button Content="+ Файл…" ToolTip="Выбрать официальные файлы, которые не нужно перезаписывать" Click="BtnProtectFile_Click" Padding="4,2" MinHeight="26" Margin="0,0,6,0"/>
+                                    <Button Content="+ Папка…" ToolTip="Выбрать папки: всё внутри них не будет перезаписываться" Click="BtnProtectFolder_Click" Padding="4,2" MinHeight="26" Margin="0,0,6,0"/>
+                                    <Button x:Name="BtnProtectRemove" Content="Убрать" Click="BtnProtectRemove_Click" Padding="4,2" MinHeight="26" Margin="0,0,6,0"/>
+                                </UniformGrid>
+                                <TextBlock Style="{StaticResource Dim}" Margin="0,2,0,0"
+                                           Text="Официальные файлы OsEngine, которые вы изменили сами: обновление их не перезапишет. Свои новые файлы и папки добавлять не нужно — они и так не трогаются."/>
 
-                                <Button Grid.Row="3" Grid.ColumnSpan="2" x:Name="BtnAdvanced" Content="Дополнительно ▸" Click="BtnAdvanced_Click"
-                                        HorizontalAlignment="Left" Padding="10,2" MinHeight="26" Margin="0,18,0,0"
+                                <Button x:Name="BtnAdvanced" Content="Дополнительно ▸" Click="BtnAdvanced_Click"
+                                        HorizontalAlignment="Left" Padding="10,2" MinHeight="26" Margin="0,20,0,0"
                                         ToolTip="Источник обновлений, токен GitHub и папки для своих роботов. Обычно менять не нужно."/>
 
-                                <Grid Grid.Row="4" Grid.ColumnSpan="2" x:Name="AdvancedGrid" Visibility="Collapsed" Margin="0,12,0,0">
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="116"/>
-                                        <ColumnDefinition Width="*"/>
-                                    </Grid.ColumnDefinitions>
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                        <RowDefinition Height="Auto"/>
-                                    </Grid.RowDefinitions>
+                                <StackPanel x:Name="AdvancedGrid" Visibility="Collapsed" Margin="0,8,0,0">
+                                    <TextBlock Text="Источник обновлений" Style="{StaticResource FieldTitle}" Margin="0,8,0,2"/>
+                                    <TextBlock Style="{StaticResource Dim}" Margin="0,0,0,8"
+                                               Text="Откуда брать OsEngine на GitHub. Менять нужно, только если обновляетесь из своего форка."/>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="8"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="8"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel>
+                                            <TextBlock Text="Владелец" Style="{StaticResource Dim}" Margin="0,0,0,4"/>
+                                            <TextBox x:Name="TxtOwner" TextChanged="AnySetting_Changed" ToolTip="Owner: AlexWan"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2">
+                                            <TextBlock Text="Репозиторий" Style="{StaticResource Dim}" Margin="0,0,0,4"/>
+                                            <TextBox x:Name="TxtRepo" TextChanged="AnySetting_Changed" ToolTip="Repo: OsEngine"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="4">
+                                            <TextBlock Text="Ветка" Style="{StaticResource Dim}" Margin="0,0,0,4"/>
+                                            <TextBox x:Name="TxtBranch" TextChanged="AnySetting_Changed" ToolTip="Branch: master"/>
+                                        </StackPanel>
+                                    </Grid>
 
-                                    <StackPanel Grid.Row="0" Grid.ColumnSpan="2" Margin="0,0,0,8">
-                                        <TextBlock Text="Источник (GitHub)" Style="{StaticResource H2}" FontSize="13" Margin="0,0,0,2"/>
-                                        <TextBlock Style="{StaticResource Dim}" Text="Откуда брать OsEngine. Менять нужно, только если обновляетесь из своего форка."/>
-                                    </StackPanel>
-                                    <TextBlock Grid.Row="1" Text="Owner" Style="{StaticResource Label}"/>
-                                    <TextBox Grid.Row="1" Grid.Column="1" x:Name="TxtOwner" TextChanged="AnySetting_Changed"/>
-                                    <TextBlock Grid.Row="2" Text="Repo" Style="{StaticResource Label}" Margin="0,6,10,0"/>
-                                    <TextBox Grid.Row="2" Grid.Column="1" x:Name="TxtRepo" Margin="0,6,0,0" TextChanged="AnySetting_Changed"/>
-                                    <TextBlock Grid.Row="3" Text="Branch" Style="{StaticResource Label}" Margin="0,6,10,0"/>
-                                    <TextBox Grid.Row="3" Grid.Column="1" x:Name="TxtBranch" Margin="0,6,0,0" TextChanged="AnySetting_Changed"/>
-                                    <TextBlock Grid.Row="4" Text="Токен" Style="{StaticResource Label}" Margin="0,6,10,0"/>
-                                    <PasswordBox Grid.Row="4" Grid.Column="1" x:Name="PwdToken" Margin="0,6,0,0" PasswordChanged="AnySetting_Changed"/>
-                                    <TextBlock Grid.Row="5" Grid.Column="1" Style="{StaticResource Dim}" Margin="0,4,0,0"
+                                    <TextBlock Text="Токен GitHub" Style="{StaticResource FieldTitle}" Margin="0,16,0,6"/>
+                                    <PasswordBox x:Name="PwdToken" PasswordChanged="AnySetting_Changed"/>
+                                    <TextBlock Style="{StaticResource Dim}" Margin="0,6,0,0"
                                                Text="Необязательно. Без токена GitHub даёт 60 запросов в час на компьютер — при нескольких копиях с частым авто лучше указать."/>
 
-                                    <TextBlock Grid.Row="6" Grid.ColumnSpan="2" Text="Моя разработка" Style="{StaticResource H2}" FontSize="13" Margin="0,18,0,8"/>
-                                    <TextBlock Grid.Row="7" Text="Папка роботов" Style="{StaticResource Label}" TextWrapping="Wrap"/>
-                                    <TextBox Grid.Row="7" Grid.Column="1" x:Name="TxtRobotsDir" TextChanged="AnySetting_Changed"
+                                    <TextBlock Text="Папка роботов" Style="{StaticResource FieldTitle}" Margin="0,16,0,6"/>
+                                    <TextBox x:Name="TxtRobotsDir" TextChanged="AnySetting_Changed"
                                              ToolTip="Относительно корня копии. По умолчанию project\OsEngine\Robots"/>
-                                    <TextBlock Grid.Row="8" Text="Папка индикаторов" Style="{StaticResource Label}" TextWrapping="Wrap" Margin="0,6,10,0"/>
-                                    <TextBox Grid.Row="8" Grid.Column="1" x:Name="TxtIndicatorsDir" Margin="0,6,0,0" TextChanged="AnySetting_Changed"
+                                    <TextBlock Text="Папка индикаторов" Style="{StaticResource FieldTitle}" Margin="0,12,0,6"/>
+                                    <TextBox x:Name="TxtIndicatorsDir" TextChanged="AnySetting_Changed"
                                              ToolTip="Относительно корня копии. По умолчанию project\OsEngine\Indicators"/>
-                                    <TextBlock Grid.Row="9" Grid.Column="1" Style="{StaticResource Dim}" Margin="0,4,0,0"
+                                    <TextBlock Style="{StaticResource Dim}" Margin="0,6,0,0"
                                                Text="Сюда ставятся роботы и индикаторы из ваших репозиториев: каждый в подпапку с именем репозитория."/>
-                                </Grid>
-                            </Grid>
+                                </StackPanel>
+                            </StackPanel>
                         </ScrollViewer>
                     </DockPanel>
                 </Border>
