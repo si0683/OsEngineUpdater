@@ -1,5 +1,7 @@
 using System.Diagnostics;
+using System.Reflection;
 using System.Runtime.InteropServices;
+using System.Runtime.InteropServices.ComTypes;
 using System.Text;
 
 namespace OsEngineUpdater.Core
@@ -83,7 +85,154 @@ namespace OsEngineUpdater.Core
                 Query(chunk, found, self);
             }
 
-            return found.Values.OrderBy(x => x.Title).ToList();
+            // 3) Visual Studio файлы копии открытыми не держит (их держат её DevHub/ServiceHub/MSBuild),
+            // а при закрытии снова пишет в .vs — её нужно найти отдельно
+            AddVisualStudio(prefix, found);
+
+            // Visual Studio закрываем первой: вместе с ней уходят её вспомогательные процессы
+            return found.Values.OrderBy(x => x.IsVisualStudio ? 0 : 1).ThenBy(x => x.Title).ToList();
+        }
+
+        /// <summary>
+        /// Visual Studio с решением из папки (по самой VS) и VS, чьи дочерние процессы держат файлы папки.
+        /// </summary>
+        private static void AddVisualStudio(string prefix, Dictionary<int, LockingProcess> found)
+        {
+            foreach (KeyValuePair<int, string> vs in VisualStudioSolutions())
+            {
+                if (!found.ContainsKey(vs.Key) && vs.Value.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+                {
+                    found[vs.Key] = Describe(vs.Key, "devenv", null);
+                }
+            }
+
+            Dictionary<int, int> parents = ParentMap();
+            HashSet<int> devenv = new HashSet<int>();
+
+            foreach (Process p in Process.GetProcessesByName("devenv"))
+            {
+                devenv.Add(p.Id);
+                p.Dispose();
+            }
+
+            foreach (int pid in found.Keys.ToList())
+            {
+                int cur = pid;
+
+                // поднимаемся по родителям (с ограничением — PID могут переиспользоваться и зациклиться)
+                for (int depth = 0; depth < 8 && parents.TryGetValue(cur, out int parent) && parent > 4; depth++)
+                {
+                    if (devenv.Contains(parent))
+                    {
+                        if (!found.ContainsKey(parent))
+                        {
+                            found[parent] = Describe(parent, "devenv", null);
+                        }
+
+                        break;
+                    }
+
+                    cur = parent;
+                }
+            }
+        }
+
+        /// <summary>
+        /// PID запущенных Visual Studio → полный путь открытого решения (пусто, если решения нет).
+        /// Берётся из самой VS через Running Object Table (объект DTE).
+        /// </summary>
+        public static Dictionary<int, string> VisualStudioSolutions()
+        {
+            Dictionary<int, string> result = new Dictionary<int, string>();
+
+            try
+            {
+                if (GetRunningObjectTable(0, out IRunningObjectTable rot) != 0 || CreateBindCtx(0, out IBindCtx ctx) != 0)
+                {
+                    return result;
+                }
+
+                rot.EnumRunning(out IEnumMoniker monikers);
+                IMoniker[] one = new IMoniker[1];
+
+                while (monikers.Next(1, one, IntPtr.Zero) == 0)
+                {
+                    try
+                    {
+                        one[0].GetDisplayName(ctx, null, out string name);
+
+                        // "!VisualStudio.DTE.18.0:14900"
+                        int colon = name?.LastIndexOf(':') ?? -1;
+
+                        if (name == null || !name.StartsWith("!VisualStudio.DTE.", StringComparison.OrdinalIgnoreCase)
+                            || !int.TryParse(name.Substring(colon + 1), out int pid))
+                        {
+                            continue;
+                        }
+
+                        rot.GetObject(one[0], out object dte);
+                        string sln = SolutionPath(dte);
+                        result[pid] = sln ?? "";
+                    }
+                    catch
+                    {
+                        // VS занята или недоступна — пропускаем, подстрахует поиск по дочерним процессам
+                    }
+                }
+            }
+            catch
+            {
+                // ROT недоступна
+            }
+
+            return result;
+        }
+
+        private static string SolutionPath(object dte)
+        {
+            try
+            {
+                // VS может быть занята модальным окном — не ждём её дольше пары секунд
+                Task<string> t = Task.Run(() =>
+                {
+                    object solution = dte.GetType().InvokeMember("Solution", BindingFlags.GetProperty, null, dte, null);
+                    return solution?.GetType().InvokeMember("FullName", BindingFlags.GetProperty, null, solution, null) as string;
+                });
+
+                return t.Wait(3000) ? t.Result : null;
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        /// <summary>PID → PID родителя для всех процессов.</summary>
+        private static Dictionary<int, int> ParentMap()
+        {
+            Dictionary<int, int> map = new Dictionary<int, int>();
+            IntPtr snap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+
+            if (snap == IntPtr.Zero || snap == new IntPtr(-1))
+            {
+                return map;
+            }
+
+            try
+            {
+                ProcessEntry32 e = new ProcessEntry32 { dwSize = (uint)Marshal.SizeOf<ProcessEntry32>() };
+
+                for (bool ok = Process32First(snap, ref e); ok; ok = Process32Next(snap, ref e))
+                {
+                    map[(int)e.th32ProcessID] = (int)e.th32ParentProcessID;
+                }
+            }
+            finally
+            {
+                CloseHandle(snap);
+            }
+
+            return map;
         }
 
         /// <summary>
@@ -106,7 +255,8 @@ namespace OsEngineUpdater.Core
                 {
                     using Process p = Process.GetProcessById(lp.Pid);
 
-                    if (lp.IsVisualStudio && p.CloseMainWindow() && p.WaitForExit(5000))
+                    // VS при закрытии сохраняет состояние — даём ей время; с вопросом «Сохранить?» она не закроется
+                    if (lp.IsVisualStudio && p.CloseMainWindow() && p.WaitForExit(15000))
                     {
                         log?.Invoke($"Закрыто: {lp.Title}");
                         continue;
@@ -252,6 +402,47 @@ namespace OsEngineUpdater.Core
         [DllImport("rstrtmgr.dll")]
         private static extern int RmGetList(uint dwSessionHandle, out uint pnProcInfoNeeded, ref uint pnProcInfo,
             [In, Out] RmProcessInfo[] rgAffectedApps, ref uint lpdwRebootReasons);
+
+        #endregion
+
+        #region Running Object Table, Toolhelp
+
+        [DllImport("ole32.dll")]
+        private static extern int GetRunningObjectTable(int reserved, out IRunningObjectTable prot);
+
+        [DllImport("ole32.dll")]
+        private static extern int CreateBindCtx(int reserved, out IBindCtx ppbc);
+
+        private const uint TH32CS_SNAPPROCESS = 0x00000002;
+
+        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+        private struct ProcessEntry32
+        {
+            public uint dwSize;
+            public uint cntUsage;
+            public uint th32ProcessID;
+            public IntPtr th32DefaultHeapID;
+            public uint th32ModuleID;
+            public uint cntThreads;
+            public uint th32ParentProcessID;
+            public int pcPriClassBase;
+            public uint dwFlags;
+
+            [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)]
+            public string szExeFile;
+        }
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        private static extern IntPtr CreateToolhelp32Snapshot(uint dwFlags, uint th32ProcessID);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
+        private static extern bool Process32First(IntPtr hSnapshot, ref ProcessEntry32 lppe);
+
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
+        private static extern bool Process32Next(IntPtr hSnapshot, ref ProcessEntry32 lppe);
+
+        [DllImport("kernel32.dll")]
+        private static extern bool CloseHandle(IntPtr hObject);
 
         #endregion
     }
