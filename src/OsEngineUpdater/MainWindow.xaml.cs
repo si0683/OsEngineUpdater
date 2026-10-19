@@ -416,7 +416,7 @@ namespace OsEngineUpdater
 
             foreach (string pattern in cfg.UserProtectedPaths)
             {
-                _protected.Add(new ExclusionItem(pattern));
+                AddProtectedItem(pattern);
             }
             TxtOwner.Text = cfg.Owner;
             TxtRepo.Text = cfg.Repo;
@@ -682,7 +682,7 @@ namespace OsEngineUpdater
 
                 if (!_protected.Any(x => string.Equals(x.Pattern, pattern, StringComparison.OrdinalIgnoreCase)))
                 {
-                    _protected.Add(new ExclusionItem(pattern));
+                    AddProtectedItem(pattern);
                     SetDirty(true);
                 }
             }
@@ -695,19 +695,47 @@ namespace OsEngineUpdater
             }
         }
 
-        private void BtnProtectRemove_Click(object sender, RoutedEventArgs e) => RemoveSelectedProtected();
+        private void AddProtectedItem(string pattern)
+        {
+            ExclusionItem item = new ExclusionItem(pattern);
+            item.PropertyChanged += (_, _) => UpdateProtectedEmpty();
+            _protected.Add(item);
+        }
+
+        private void BtnProtectRemove_Click(object sender, RoutedEventArgs e) => RemoveCheckedProtected();
+
+        /// <summary>Щелчок по строке (мимо самой галочки) ставит/снимает галочку.</summary>
+        private void ProtectedRow_Click(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            if (((FrameworkElement)sender).DataContext is ExclusionItem item)
+            {
+                item.IsChecked = !item.IsChecked;
+            }
+        }
 
         private void LstProtected_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
         {
             if (e.Key == System.Windows.Input.Key.Delete)
             {
-                RemoveSelectedProtected();
+                RemoveCheckedProtected();
+                e.Handled = true;
+            }
+            else if (e.Key == System.Windows.Input.Key.Space && LstProtected.SelectedItem is ExclusionItem item)
+            {
+                item.IsChecked = !item.IsChecked;
+                e.Handled = true;
             }
         }
 
-        private void RemoveSelectedProtected()
+        /// <summary>Убрать отмеченные галочкой (если не отмечено ничего — строку под курсором клавиатуры).</summary>
+        private void RemoveCheckedProtected()
         {
-            List<ExclusionItem> sel = LstProtected.SelectedItems.Cast<ExclusionItem>().ToList();
+            List<ExclusionItem> sel = _protected.Where(x => x.IsChecked).ToList();
+
+            if (sel.Count == 0 && LstProtected.SelectedItem is ExclusionItem current)
+            {
+                sel.Add(current);
+            }
 
             if (sel.Count == 0)
             {
@@ -724,8 +752,11 @@ namespace OsEngineUpdater
 
         private void UpdateProtectedEmpty()
         {
+            int n = _protected.Count(x => x.IsChecked);
             TxtProtectedEmpty.Visibility = _protected.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-            BtnProtectRemove.IsEnabled = _protected.Count > 0;
+            BtnProtectRemove.IsEnabled = n > 0;
+            BtnProtectRemove.Content = n > 0 ? $"Убрать ({n})" : "Убрать";
+            BtnProtectRemove.ToolTip = n > 0 ? "Убрать отмеченные из списка" : "Отметьте галочками строки, которые нужно убрать";
         }
 
         #endregion
@@ -1228,13 +1259,30 @@ namespace OsEngineUpdater
         #endregion
     }
 
-    /// <summary>Строка списка «Не перезаписывать»: маска и её понятный вид.</summary>
-    public sealed class ExclusionItem
+    /// <summary>Строка списка «Не перезаписывать»: маска, её понятный вид и галочка для «Убрать».</summary>
+    public sealed class ExclusionItem : INotifyPropertyChanged
     {
         public ExclusionItem(string pattern)
         {
             Pattern = pattern.Trim().Replace('\\', '/');
         }
+
+        private bool _isChecked;
+
+        public bool IsChecked
+        {
+            get => _isChecked;
+            set
+            {
+                if (_isChecked != value)
+                {
+                    _isChecked = value;
+                    PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsChecked)));
+                }
+            }
+        }
+
+        public event PropertyChangedEventHandler PropertyChanged;
 
         public string Pattern { get; }
 

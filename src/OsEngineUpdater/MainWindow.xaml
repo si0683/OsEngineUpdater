@@ -161,24 +161,29 @@
                                 <Border Background="{StaticResource Input}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="3"
                                         MinHeight="34" MaxHeight="120">
                                     <Grid>
-                                        <ListBox x:Name="LstProtected" Margin="3" SelectionMode="Extended"
-                                                 ScrollViewer.VerticalScrollBarVisibility="Auto" KeyDown="LstProtected_KeyDown">
+                                        <!-- строки с галочками: щелчок по строке ставит/снимает галочку, «Убрать» убирает отмеченные -->
+                                        <ListBox x:Name="LstProtected" Margin="3" SelectionMode="Single"
+                                                 ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                                 KeyDown="LstProtected_KeyDown">
                                             <ListBox.ItemContainerStyle>
                                                 <Style TargetType="ListBoxItem">
                                                     <Setter Property="Foreground" Value="{StaticResource Fg}"/>
+                                                    <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                                                    <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+                                                    <EventSetter Event="MouseLeftButtonUp" Handler="ProtectedRow_Click"/>
                                                     <Setter Property="Template">
                                                         <Setter.Value>
                                                             <ControlTemplate TargetType="ListBoxItem">
-                                                                <Border x:Name="Bd" Background="Transparent" CornerRadius="3" Padding="6,3">
+                                                                <Border x:Name="Bd" Background="Transparent" CornerRadius="3" Padding="6,4" Cursor="Hand">
                                                                     <ContentPresenter/>
                                                                 </Border>
                                                                 <ControlTemplate.Triggers>
                                                                     <Trigger Property="IsMouseOver" Value="True">
                                                                         <Setter TargetName="Bd" Property="Background" Value="{StaticResource Hover}"/>
                                                                     </Trigger>
-                                                                    <Trigger Property="IsSelected" Value="True">
+                                                                    <DataTrigger Binding="{Binding IsChecked}" Value="True">
                                                                         <Setter TargetName="Bd" Property="Background" Value="{StaticResource Panel2}"/>
-                                                                    </Trigger>
+                                                                    </DataTrigger>
                                                                 </ControlTemplate.Triggers>
                                                             </ControlTemplate>
                                                         </Setter.Value>
@@ -187,10 +192,11 @@
                                             </ListBox.ItemContainerStyle>
                                             <ListBox.ItemTemplate>
                                                 <DataTemplate>
-                                                    <StackPanel Orientation="Horizontal" ToolTip="{Binding Pattern}">
-                                                        <TextBlock Text="{Binding Icon}" Foreground="{StaticResource FgDim}" Margin="0,0,6,0"/>
-                                                        <TextBlock Text="{Binding Display}" TextTrimming="CharacterEllipsis"/>
-                                                    </StackPanel>
+                                                    <DockPanel ToolTip="{Binding Pattern}" Background="Transparent">
+                                                        <CheckBox DockPanel.Dock="Left" IsChecked="{Binding IsChecked, Mode=TwoWay}" Focusable="False" Margin="0,0,8,0"/>
+                                                        <TextBlock DockPanel.Dock="Left" Text="{Binding Icon}" Foreground="{StaticResource FgDim}" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                                        <TextBlock Text="{Binding Display}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                                                    </DockPanel>
                                                 </DataTemplate>
                                             </ListBox.ItemTemplate>
                                         </ListBox>
