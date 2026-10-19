@@ -24,6 +24,10 @@
                     <Button Content="Добавить" Click="BtnAdd_Click" Margin="0,0,8,0"/>
                     <Button x:Name="BtnRemove" Content="Удалить из списка" Click="BtnRemove_Click" Margin="0"/>
                 </StackPanel>
+                <Grid>
+                <TextBlock x:Name="TxtListEmpty" Style="{StaticResource Dim}" FontSize="13" TextAlignment="Center"
+                           HorizontalAlignment="Center" VerticalAlignment="Center" Margin="12"
+                           Text="Список пуст.&#x0a;Нажмите «Добавить» и вставьте адрес аккаунта GitHub / GitFlic или репозитория."/>
                 <ListBox x:Name="EntriesList" SelectionChanged="EntriesList_SelectionChanged">
                     <ListBox.ItemTemplate>
                         <DataTemplate>
@@ -35,6 +39,7 @@
                         </DataTemplate>
                     </ListBox.ItemTemplate>
                 </ListBox>
+                </Grid>
             </DockPanel>
         </Border>
 
@@ -77,6 +82,10 @@
                                     <ControlTemplate.Triggers>
                                         <Trigger Property="IsMouseOver" Value="True">
                                             <Setter TargetName="T" Property="Foreground" Value="{StaticResource AccentHover}"/>
+                                        </Trigger>
+                                        <Trigger Property="IsEnabled" Value="False">
+                                            <Setter TargetName="T" Property="Foreground" Value="{StaticResource FgDim}"/>
+                                            <Setter TargetName="T" Property="Opacity" Value="0.5"/>
                                         </Trigger>
                                     </ControlTemplate.Triggers>
                                 </ControlTemplate>

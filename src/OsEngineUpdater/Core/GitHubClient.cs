@@ -51,13 +51,17 @@ namespace OsEngineUpdater.Core
             _api.DefaultRequestHeaders.UserAgent.ParseAdd(UserAgent);
             _api.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
 
-            if (!string.IsNullOrWhiteSpace(cfg.GitHubToken))
-            {
-                _api.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", cfg.GitHubToken.Trim());
-            }
-
+            string token = cfg.GitHubToken;
             _raw = new HttpClient { Timeout = TimeSpan.FromMinutes(30) };
             _raw.DefaultRequestHeaders.UserAgent.ParseAdd(UserAgent);
+
+            if (!string.IsNullOrWhiteSpace(token))
+            {
+                _api.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token.Trim());
+
+                // с токеном скачиваются и файлы закрытого форка (raw / архив)
+                _raw.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token.Trim());
+            }
         }
 
         public string Source => $"{_owner}/{_repo}@{_branch}";

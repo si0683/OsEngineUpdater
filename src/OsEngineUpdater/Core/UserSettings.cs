@@ -1,5 +1,3 @@
-using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
@@ -45,8 +43,8 @@ namespace OsEngineUpdater.Core
         [JsonIgnore]
         public string Token
         {
-            get => Unprotect(TokenProtected);
-            set => TokenProtected = Protect(value);
+            get => Secret.Unprotect(TokenProtected);
+            set => TokenProtected = Secret.Protect(value);
         }
 
         [JsonIgnore]
@@ -85,6 +83,11 @@ namespace OsEngineUpdater.Core
         {
             get
             {
+                if (string.IsNullOrWhiteSpace(Url))
+                {
+                    return "введите адрес";
+                }
+
                 string kind = IsAccount ? "аккаунт" : "репозиторий";
                 string host = Provider switch { GitProvider.GitHub => "GitHub", GitProvider.GitFlic => "GitFlic", _ => "git" };
                 return $"{host} · {kind}{(HasToken ? " · токен" : "")}";
@@ -132,35 +135,6 @@ namespace OsEngineUpdater.Core
 
             // любой другой git-сервер — только адрес одного репозитория
             return (GitProvider.Other, seg.Length >= 1 ? seg[0] : null, seg.Length >= 1 ? seg[^1] : u.Host);
-        }
-
-        private static string Protect(string token)
-        {
-            if (string.IsNullOrWhiteSpace(token))
-            {
-                return "";
-            }
-
-            byte[] data = ProtectedData.Protect(Encoding.UTF8.GetBytes(token.Trim()), null, DataProtectionScope.CurrentUser);
-            return Convert.ToBase64String(data);
-        }
-
-        private static string Unprotect(string protectedToken)
-        {
-            if (string.IsNullOrEmpty(protectedToken))
-            {
-                return "";
-            }
-
-            try
-            {
-                return Encoding.UTF8.GetString(ProtectedData.Unprotect(Convert.FromBase64String(protectedToken), null, DataProtectionScope.CurrentUser));
-            }
-            catch
-            {
-                // зашифровано под другим пользователем / на другом компьютере
-                return "";
-            }
         }
     }
 

@@ -18,6 +18,7 @@ namespace OsEngineUpdater
         private readonly DispatcherTimer _watchTimer = new DispatcherTimer();
         private readonly Dictionary<CopyItem, FileSystemWatcher> _watchers = new Dictionary<CopyItem, FileSystemWatcher>();
         private readonly Dictionary<CopyItem, DispatcherTimer> _debounce = new Dictionary<CopyItem, DispatcherTimer>();
+        private readonly Dictionary<CopyItem, DateTime> _ownWrite = new Dictionary<CopyItem, DateTime>();
         private DateTime? _nextCheck;
         private bool _checking;
         private bool _watchReady;
@@ -172,6 +173,15 @@ namespace OsEngineUpdater
             Title = behind > 0 ? $"{BaseTitle} — есть обновления ({behind})" : BaseTitle;
         }
 
+        /// <summary>Отметка: лог копии только что писало само окно.</summary>
+        private void MarkOwnWrite(CopyItem item)
+        {
+            if (item != null)
+            {
+                _ownWrite[item] = DateTime.Now;
+            }
+        }
+
         #region Files of copies
 
         /// <summary>Следим за state.json и update.log копии: их меняет автообновление из Планировщика.</summary>
@@ -257,7 +267,14 @@ namespace OsEngineUpdater
             if (item == _selected)
             {
                 UpdateStatusCards();
-                LoadLogTail();
+
+                // лог своей операции уже на экране — не перечитываем, чтобы не пропали строки только окна
+                bool own = _ownWrite.TryGetValue(item, out DateTime at) && DateTime.Now - at < TimeSpan.FromSeconds(5);
+
+                if (!own)
+                {
+                    LoadLogTail();
+                }
             }
 
             UpdateWatchText();

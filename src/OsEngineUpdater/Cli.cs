@@ -66,8 +66,8 @@ namespace OsEngineUpdater
 
                     Print(LogLevel.Info, $"Задание  : {copy.TaskName}{(t.Legacy ? " (старый .ps1)" : "")}");
                     Print(LogLevel.Info, $"Состояние: {t.State}");
-                    Print(LogLevel.Info, $"Последний: {t.LastRun:dd.MM.yyyy HH:mm} ({t.LastResultText})");
-                    Print(LogLevel.Info, $"Следующий: {t.NextRun:dd.MM.yyyy HH:mm}");
+                    Print(LogLevel.Info, t.LastRun is DateTime lr ? $"Последний: {lr:dd.MM.yyyy HH:mm} ({t.LastResultText})" : "Последний: ещё не запускалось");
+                    Print(LogLevel.Info, t.NextRun is DateTime nr ? $"Следующий: {nr:dd.MM.yyyy HH:mm}" : "Следующий: при входе в систему");
                     Print(LogLevel.Info, $"Команда  : {t.Command} {t.Arguments}");
                     return ExitCodes.Ok;
                 }

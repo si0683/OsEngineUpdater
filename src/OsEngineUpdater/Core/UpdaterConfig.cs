@@ -17,7 +17,24 @@ namespace OsEngineUpdater.Core
         public string Owner { get; set; } = "AlexWan";
         public string Repo { get; set; } = "OsEngine";
         public string Branch { get; set; } = "master";
-        public string GitHubToken { get; set; } = "";
+        /// <summary>Токен GitHub, зашифрованный для текущего пользователя Windows (DPAPI), base64.</summary>
+        public string GitHubTokenProtected { get; set; } = "";
+
+        /// <summary>Открытый токен из старых конфигов: при загрузке шифруется и больше не записывается.</summary>
+        [JsonPropertyName("GitHubToken")]
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public string LegacyGitHubToken { get; set; }
+
+        [JsonIgnore]
+        public string GitHubToken
+        {
+            get => Secret.Unprotect(GitHubTokenProtected);
+            set
+            {
+                GitHubTokenProtected = Secret.Protect(value);
+                LegacyGitHubToken = null;
+            }
+        }
 
         /// <summary>Prebuilt — bin обновляется; FromSource — bin защищён, после обновления сборка.</summary>
         public string Profile { get; set; } = ProfilePrebuilt;
@@ -109,11 +126,32 @@ namespace OsEngineUpdater.Core
             cfg.Owner = string.IsNullOrWhiteSpace(cfg.Owner) ? "AlexWan" : cfg.Owner.Trim();
             cfg.Repo = string.IsNullOrWhiteSpace(cfg.Repo) ? "OsEngine" : cfg.Repo.Trim();
             cfg.Branch = string.IsNullOrWhiteSpace(cfg.Branch) ? "master" : cfg.Branch.Trim();
-            cfg.GitHubToken ??= "";
+            cfg.GitHubTokenProtected ??= "";
 
-            if (!File.Exists(copy.ConfigPath))
+            // старый конфиг хранил токен открытым текстом — шифруем и перезаписываем файл без него
+            bool migrateToken = cfg.LegacyGitHubToken != null;
+
+            if (migrateToken)
             {
-                cfg.Save(copy);
+                string plain = cfg.LegacyGitHubToken;
+                cfg.LegacyGitHubToken = null;
+
+                if (!string.IsNullOrWhiteSpace(plain) && string.IsNullOrEmpty(cfg.GitHubTokenProtected))
+                {
+                    cfg.GitHubToken = plain;
+                }
+            }
+
+            if (migrateToken || !File.Exists(copy.ConfigPath))
+            {
+                try
+                {
+                    cfg.Save(copy);
+                }
+                catch
+                {
+                    // не удалось перезаписать (нет прав) — работаем с тем, что прочитали
+                }
             }
 
             return cfg;

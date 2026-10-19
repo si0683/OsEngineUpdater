@@ -101,6 +101,7 @@ namespace OsEngineUpdater
                 TxtVersion.Text = TxtBehind.Text = TxtAuto.Text = "—";
                 TxtVersionDate.Text = TxtBehindHint.Text = TxtAutoDetails.Text = "";
                 TxtLog.Clear();
+                TxtLogTitle.Text = "Лог";
                 SetFormEnabled(false);
                 UpdateButtons();
                 return;
@@ -475,23 +476,34 @@ namespace OsEngineUpdater
                 _savedConfig = cfg;
                 SetDirty(false);
                 AppendLog(LogLevel.Ok, "Настройки сохранены: " + _selected.Copy.ConfigPath);
-
-                // задание в Планировщике берёт интервал и режим из настроек — перерегистрируем
-                if (_selected.Auto?.Installed == true && !_selected.Auto.Legacy)
-                {
-                    AutoTaskService.Install(_selected.Copy, cfg, Environment.ProcessPath);
-                    AppendLog(LogLevel.Ok, $"Задание автообновления обновлено: {cfg.AutoMode}, каждые {cfg.IntervalMinutes} мин.");
-                    _ = RefreshAutoAsync(_selected);
-                }
-
-                UpdateStatusCards();
-                return true;
             }
             catch (Exception ex)
             {
                 MessageBox.Show(this, "Не удалось сохранить: " + ex.Message, "Настройки", MessageBoxButton.OK, MessageBoxImage.Error);
                 return false;
             }
+
+            // задание в Планировщике берёт интервал и режим из настроек — перерегистрируем
+            if (_selected.Auto?.Installed == true && !_selected.Auto.Legacy)
+            {
+                try
+                {
+                    AutoTaskService.Install(_selected.Copy, cfg, Environment.ProcessPath);
+                    AppendLog(LogLevel.Ok, $"Задание автообновления обновлено: {cfg.AutoMode}, каждые {cfg.IntervalMinutes} мин.");
+                }
+                catch (Exception ex)
+                {
+                    // настройки уже сохранены — сообщаем только про задание
+                    AppendLog(LogLevel.Error, "Настройки сохранены, но задание автообновления не обновлено: " + ex.Message);
+                    MessageBox.Show(this, "Настройки сохранены, но задание автообновления не удалось перенастроить:\n" + ex.Message,
+                        "Автообновление", MessageBoxButton.OK, MessageBoxImage.Warning);
+                }
+
+                _ = RefreshAutoAsync(_selected);
+            }
+
+            UpdateStatusCards();
+            return true;
         }
 
         private void AnySetting_Changed(object sender, RoutedEventArgs e)
@@ -667,6 +679,7 @@ namespace OsEngineUpdater
             try
             {
                 VsRefresher.Run(_selected.Copy, new UpdateLog(_selected.Copy.LogPath, (l, m) => AppendLog(l, m)));
+                MarkOwnWrite(_selected);
             }
             catch (Exception ex)
             {
@@ -813,6 +826,7 @@ namespace OsEngineUpdater
             {
                 _cts.Dispose();
                 _cts = null;
+                MarkOwnWrite(item);
                 _runningItem = null;
                 UpdateButtons();
             }

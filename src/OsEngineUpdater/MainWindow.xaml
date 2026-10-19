@@ -1,7 +1,7 @@
 <Window x:Class="OsEngineUpdater.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="OsEngine Updater" Icon="Assets/app.ico" Width="1200" Height="780" MinWidth="1000" MinHeight="620"
+        Title="OsEngine Updater" Icon="Assets/app.ico" Width="1200" Height="780" MinWidth="1120" MinHeight="700"
         WindowStartupLocation="CenterScreen"
         Background="{StaticResource Bg}" Foreground="{StaticResource Fg}"
         FontFamily="Segoe UI" FontSize="13"
@@ -240,7 +240,7 @@
                     <DockPanel>
                         <DockPanel DockPanel.Dock="Top" Margin="0,0,0,10">
                             <Button DockPanel.Dock="Right" Content="Открыть лог" Click="BtnOpenLog_Click" Margin="0" Padding="10,2" MinHeight="26"/>
-                            <TextBlock x:Name="TxtLogTitle" Text="Лог" Style="{StaticResource H2}" Margin="0" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="TxtLogTitle" Text="Лог" Style="{StaticResource H2}" Margin="0,0,10,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
                         </DockPanel>
                         <TextBox x:Name="TxtLog" IsReadOnly="True" FontFamily="Consolas" FontSize="12" TextWrapping="Wrap"
                                  VerticalContentAlignment="Top" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"

@@ -52,6 +52,12 @@ namespace OsEngineUpdater
 
             FormGrid.IsEnabled = entry != null;
             BtnRemove.IsEnabled = entry != null;
+            TxtListEmpty.Visibility = _entries.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+
+            if (entry == null)
+            {
+                PanelHowToken.Visibility = Visibility.Collapsed;
+            }
             TxtTest.Text = "";
             TxtUrl.Text = entry?.Url ?? "";
             TxtBranch.Text = entry?.Branch ?? "";
