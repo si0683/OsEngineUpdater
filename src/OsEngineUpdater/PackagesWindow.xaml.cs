@@ -234,8 +234,50 @@ namespace OsEngineUpdater
 
         private async void ReposList_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            RepoRow row = ReposList.SelectedItem as RepoRow;
+            await ShowRowAsync(ReposList.SelectedItem as RepoRow);
+        }
 
+        /// <summary>
+        /// Галочка репозитория: строка выделяется, и справа сразу видны её файлы
+        /// (щелчок по самой галочке строку ListBox не выделяет).
+        /// </summary>
+        private async void RepoCheck_Click(object sender, RoutedEventArgs e)
+        {
+            if (((FrameworkElement)sender).DataContext is not RepoRow row)
+            {
+                return;
+            }
+
+            // отметки файлов следуют за галочкой репозитория
+            if (row.Tree != null)
+            {
+                bool check = row.IsChecked;
+
+                if (!check)
+                {
+                    row.SetAll(false);
+                }
+                else if (row.SelectedFiles().Count == 0)
+                {
+                    row.SetAll(true);
+                }
+
+                row.IsChecked = check;
+            }
+
+            if (ReposList.SelectedItem != row)
+            {
+                ReposList.SelectedItem = row; // дальше — ReposList_SelectionChanged
+                ReposList.ScrollIntoView(row);
+            }
+            else if (_shown != row)
+            {
+                await ShowRowAsync(row);
+            }
+        }
+
+        private async Task ShowRowAsync(RepoRow row)
+        {
             if (row == null)
             {
                 return;

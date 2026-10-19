@@ -52,7 +52,7 @@
                                             <ColumnDefinition Width="Auto"/>
                                             <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
-                                        <CheckBox IsChecked="{Binding IsChecked, Mode=TwoWay}" Margin="2,0,12,0" VerticalAlignment="Center"/>
+                                        <CheckBox IsChecked="{Binding IsChecked, Mode=TwoWay}" Margin="2,0,12,0" VerticalAlignment="Center" Click="RepoCheck_Click"/>
                                         <StackPanel Grid.Column="1">
                                             <TextBlock FontWeight="SemiBold" TextTrimming="CharacterEllipsis">
                                                 <Run Text="{Binding Name, Mode=OneWay}"/>
