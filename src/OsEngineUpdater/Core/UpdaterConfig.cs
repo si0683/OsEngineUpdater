@@ -39,7 +39,11 @@ namespace OsEngineUpdater.Core
         /// <summary>Prebuilt — bin обновляется; FromSource — bin защищён, после обновления сборка.</summary>
         public string Profile { get; set; } = ProfilePrebuilt;
 
-        /// <summary>Режим автообновления: Mirror (полная сверка) или Delta (только изменения).</summary>
+        /// <summary>Профиль выбран автоматически при первом открытии копии и ещё не подтверждён пользователем.</summary>
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+        public bool ProfileAutoDetected { get; set; }
+
+        /// <summary>Режим автообновления: Mirror (полная сверка) или Delta (только изменения). В окне не показывается.</summary>
         public string AutoMode { get; set; } = ModeMirror;
 
         /// <summary>Устарело: частота автообновления теперь общая (UserSettings.AutoMinutes). Оставлено для старых конфигов.</summary>
@@ -48,10 +52,10 @@ namespace OsEngineUpdater.Core
 
         public List<string> UserProtectedPaths { get; set; } = new List<string>();
 
-        /// <summary>null — по профилю.</summary>
+        /// <summary>null — по профилю. В окне не показывается, задаётся только в config.json.</summary>
         public bool? BuildAfterUpdate { get; set; }
 
-        /// <summary>Пусто — команда по умолчанию.</summary>
+        /// <summary>Пусто — команда по умолчанию. В окне не показывается, задаётся только в config.json.</summary>
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
         public string BuildCommand { get; set; }
 
@@ -95,6 +99,33 @@ namespace OsEngineUpdater.Core
         [JsonIgnore]
         public string EffectiveBuildCommand => string.IsNullOrWhiteSpace(BuildCommand) ? DefaultBuildCommand : BuildCommand;
 
+        [JsonIgnore]
+        public bool HasCustomBuild => BuildAfterUpdate != null || !string.IsNullOrWhiteSpace(BuildCommand);
+
+        /// <summary>
+        /// Копию собирали локально, если в obj проекта есть скомпилированный OsEngine.dll
+        /// (в репозитории obj нет, а простое открытие проекта в VS dll не создаёт).
+        /// </summary>
+        public static bool LooksBuiltLocally(CopyInfo copy)
+        {
+            try
+            {
+                string obj = Path.Combine(copy.Root, @"project\OsEngine\obj");
+
+                if (!Directory.Exists(obj))
+                {
+                    return false;
+                }
+
+                EnumerationOptions options = new EnumerationOptions { RecurseSubdirectories = true, MaxRecursionDepth = 3, IgnoreInaccessible = true };
+                return Directory.EnumerateFiles(obj, "OsEngine.dll", options).Any();
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
         private static readonly JsonSerializerOptions JsonOptions = new JsonSerializerOptions
         {
             WriteIndented = true,
@@ -121,7 +152,16 @@ namespace OsEngineUpdater.Core
                 cfg = JsonSerializer.Deserialize<UpdaterConfig>(File.ReadAllText(path), JsonOptions);
             }
 
-            cfg ??= new UpdaterConfig();
+            if (cfg == null)
+            {
+                // первое открытие копии: способ запуска угадываем, пользователь может поменять
+                cfg = new UpdaterConfig
+                {
+                    Profile = LooksBuiltLocally(copy) ? ProfileFromSource : ProfilePrebuilt,
+                    ProfileAutoDetected = true
+                };
+            }
+
             cfg.UserProtectedPaths ??= new List<string>();
             cfg.Owner = string.IsNullOrWhiteSpace(cfg.Owner) ? "AlexWan" : cfg.Owner.Trim();
             cfg.Repo = string.IsNullOrWhiteSpace(cfg.Repo) ? "OsEngine" : cfg.Repo.Trim();

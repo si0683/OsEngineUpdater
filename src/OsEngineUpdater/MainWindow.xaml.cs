@@ -412,9 +412,6 @@ namespace OsEngineUpdater
             _loadingForm = true;
 
             SelectByTag(CmbProfile, cfg.BinProtected ? UpdaterConfig.ProfileFromSource : UpdaterConfig.ProfilePrebuilt);
-            SelectByTag(CmbBuild, cfg.BuildAfterUpdate == null ? "auto" : (cfg.BuildAfterUpdate.Value ? "yes" : "no"));
-            TxtBuildCommand.Text = cfg.BuildCommand ?? "";
-            SelectByTag(CmbMode, cfg.IsDeltaMode ? UpdaterConfig.ModeDelta : UpdaterConfig.ModeMirror);
             _protected.Clear();
 
             foreach (string pattern in cfg.UserProtectedPaths)
@@ -428,6 +425,12 @@ namespace OsEngineUpdater
             TxtRobotsDir.Text = cfg.EffectiveRobotsDir;
             TxtIndicatorsDir.Text = cfg.EffectiveIndicatorsDir;
 
+            // свой форк виден сразу, остальным «Дополнительно» не мешает
+            bool customSource = !string.Equals(cfg.Owner, "AlexWan", StringComparison.OrdinalIgnoreCase)
+                || !string.Equals(cfg.Repo, "OsEngine", StringComparison.OrdinalIgnoreCase)
+                || !string.Equals(cfg.Branch, "master", StringComparison.OrdinalIgnoreCase);
+            SetAdvancedVisible(customSource || AdvancedGrid.Visibility == Visibility.Visible);
+
             _loadingForm = false;
             SetDirty(false);
             UpdateProfileHint();
@@ -437,9 +440,7 @@ namespace OsEngineUpdater
         {
             UpdaterConfig cfg = _savedConfig?.Clone() ?? new UpdaterConfig();
             cfg.Profile = TagOf(CmbProfile) ?? UpdaterConfig.ProfilePrebuilt;
-            cfg.BuildAfterUpdate = TagOf(CmbBuild) switch { "yes" => true, "no" => false, _ => null };
-            cfg.BuildCommand = string.IsNullOrWhiteSpace(TxtBuildCommand.Text) ? null : TxtBuildCommand.Text.Trim();
-            cfg.AutoMode = TagOf(CmbMode) ?? UpdaterConfig.ModeMirror;
+            cfg.ProfileAutoDetected = false;
             cfg.UserProtectedPaths = _protected.Select(x => x.Pattern).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
             cfg.Owner = string.IsNullOrWhiteSpace(TxtOwner.Text) ? "AlexWan" : TxtOwner.Text.Trim();
             cfg.Repo = string.IsNullOrWhiteSpace(TxtRepo.Text) ? "OsEngine" : TxtRepo.Text.Trim();
@@ -514,13 +515,24 @@ namespace OsEngineUpdater
 
             SetDirty(true);
 
-            if (sender == CmbProfile || sender == CmbBuild)
+            if (sender == CmbProfile)
             {
                 UpdateProfileHint();
             }
         }
 
         private void BtnSave_Click(object sender, RoutedEventArgs e) => SaveSettings();
+
+        private void BtnAdvanced_Click(object sender, RoutedEventArgs e)
+        {
+            SetAdvancedVisible(AdvancedGrid.Visibility != Visibility.Visible);
+        }
+
+        private void SetAdvancedVisible(bool visible)
+        {
+            AdvancedGrid.Visibility = visible ? Visibility.Visible : Visibility.Collapsed;
+            BtnAdvanced.Content = visible ? "Дополнительно ▾" : "Дополнительно ▸";
+        }
 
         #region Pane widths
 
@@ -725,17 +737,38 @@ namespace OsEngineUpdater
         private void UpdateProfileHint()
         {
             bool fromSource = TagOf(CmbProfile) == UpdaterConfig.ProfileFromSource;
-            string build = TagOf(CmbBuild) switch
-            {
-                "yes" => "сборка после обновления — всегда",
-                "no" => "сборки нет",
-                _ => fromSource ? "после обновления запускается сборка" : "сборки нет"
-            };
 
-            TxtProfileHint.Text = fromSource
-                ? "Папка bin защищена — ваша сборка не затирается; " + build + "."
-                : "Папка bin обновляется (bin/Debug/OsEngine.exe остаётся актуальным); " + build
-                  + ". Свой код держите в bin/Debug/Custom.";
+            string text = fromSource
+                ? "Обновляются исходники, ваша сборка в bin не затирается. После обновления OsEngine пересобирается сам (нужен .NET SDK)."
+                : "Обновляется всё, включая bin/Debug/OsEngine.exe. Свой код держите в bin/Debug/Custom.";
+
+            UpdaterConfig saved = _savedConfig;
+
+            if (saved != null && saved.HasCustomBuild)
+            {
+                string build = saved.BuildAfterUpdate switch
+                {
+                    true => "собирать всегда",
+                    false => "не собирать",
+                    _ => fromSource ? "собирать" : "не собирать"
+                };
+
+                if (!string.IsNullOrWhiteSpace(saved.BuildCommand))
+                {
+                    build += ", команда: " + saved.BuildCommand;
+                }
+
+                text += "\nВ config.json сборка задана вручную: " + build + ".";
+            }
+
+            if (saved != null && saved.ProfileAutoDetected && !_dirty)
+            {
+                text = (saved.BinProtected
+                    ? "Определено автоматически: в папке проекта есть ваша сборка. "
+                    : "Определено автоматически. ") + text;
+            }
+
+            TxtProfileHint.Text = text;
         }
 
         private void SetDirty(bool dirty)

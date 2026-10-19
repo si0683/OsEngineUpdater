@@ -148,9 +148,9 @@
                             <TextBlock x:Name="TxtDirty" VerticalAlignment="Center" Style="{StaticResource Dim}"/>
                         </StackPanel>
                         <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,0,8,0">
-                            <Grid x:Name="SettingsGrid">
+                            <Grid x:Name="SettingsGrid" Grid.IsSharedSizeScope="True">
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto" SharedSizeGroup="Lbl"/>
                                     <ColumnDefinition Width="*"/>
                                 </Grid.ColumnDefinitions>
                                 <Grid.RowDefinitions>
@@ -159,46 +159,17 @@
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
-                                    <RowDefinition Height="Auto"/>
                                 </Grid.RowDefinitions>
 
-                                <TextBlock Grid.Row="0" Text="Профиль" Style="{StaticResource Label}"/>
-                                <ComboBox Grid.Row="0" Grid.Column="1" x:Name="CmbProfile" SelectionChanged="AnySetting_Changed">
-                                    <ComboBoxItem Tag="Prebuilt" Content="Prebuilt — готовый движок"/>
-                                    <ComboBoxItem Tag="FromSource" Content="FromSource — собираю сам"/>
+                                <TextBlock Grid.Row="0" Text="Как запускаете&#10;OsEngine" Style="{StaticResource Label}"/>
+                                <ComboBox Grid.Row="0" Grid.Column="1" x:Name="CmbProfile" SelectionChanged="AnySetting_Changed" VerticalAlignment="Center">
+                                    <ComboBoxItem Tag="Prebuilt" Content="Готовый OsEngine.exe"/>
+                                    <ComboBoxItem Tag="FromSource" Content="Собираю сам в Visual Studio"/>
                                 </ComboBox>
                                 <TextBlock Grid.Row="1" Grid.Column="1" x:Name="TxtProfileHint" Style="{StaticResource Dim}" Margin="0,4,0,10"/>
 
-                                <TextBlock Grid.Row="2" Text="Сборка после" Style="{StaticResource Label}"/>
-                                <ComboBox Grid.Row="2" Grid.Column="1" x:Name="CmbBuild" SelectionChanged="AnySetting_Changed">
-                                    <ComboBoxItem Tag="auto" Content="По профилю"/>
-                                    <ComboBoxItem Tag="yes" Content="Всегда собирать"/>
-                                    <ComboBoxItem Tag="no" Content="Не собирать"/>
-                                </ComboBox>
-
-                                <TextBlock Grid.Row="3" Text="Команда сборки" Style="{StaticResource Label}" Margin="0,10,10,0"/>
-                                <TextBox Grid.Row="3" Grid.Column="1" x:Name="TxtBuildCommand" Margin="0,10,0,0" TextChanged="AnySetting_Changed"
-                                         ToolTip="Пусто — dotnet build &quot;project\OsEngine\OsEngine.csproj&quot; -c Debug"/>
-
-                                <TextBlock Grid.Row="4" Text="Режим авто" Style="{StaticResource Label}" Margin="0,16,10,0"/>
-                                <ComboBox Grid.Row="4" Grid.Column="1" x:Name="CmbMode" Margin="0,16,0,0" SelectionChanged="AnySetting_Changed">
-                                    <ComboBoxItem Tag="Mirror" Content="Mirror — полная сверка"/>
-                                    <ComboBoxItem Tag="Delta" Content="Delta — только изменения"/>
-                                </ComboBox>
-
-                                <TextBlock Grid.Row="6" Text="Не перезаписывать" Style="{StaticResource Label}" VerticalAlignment="Top" Margin="0,24,10,0"/>
-                                <StackPanel Grid.Row="6" Grid.Column="1" Margin="0,16,0,0">
+                                <TextBlock Grid.Row="2" Text="Не перезаписывать" Style="{StaticResource Label}" VerticalAlignment="Top" Margin="0,24,10,0"/>
+                                <StackPanel Grid.Row="2" Grid.Column="1" Margin="0,16,0,0">
                                     <Border Background="{StaticResource Input}" BorderBrush="{StaticResource Line}" BorderThickness="1" CornerRadius="3"
                                             MinHeight="34" MaxHeight="120">
                                         <Grid>
@@ -248,28 +219,53 @@
                                                Text="Официальные файлы OsEngine, которые вы изменили сами: обновление их не перезапишет. Свои новые файлы и папки добавлять не нужно — они и так не трогаются."/>
                                 </StackPanel>
 
-                                <TextBlock Grid.Row="7" Grid.ColumnSpan="2" Text="Источник (GitHub)" Style="{StaticResource H2}" FontSize="13" Margin="0,18,0,8"/>
+                                <Button Grid.Row="3" Grid.ColumnSpan="2" x:Name="BtnAdvanced" Content="Дополнительно ▸" Click="BtnAdvanced_Click"
+                                        HorizontalAlignment="Left" Padding="10,2" MinHeight="26" Margin="0,18,0,0"
+                                        ToolTip="Источник обновлений, токен GitHub и папки для своих роботов. Обычно менять не нужно."/>
 
-                                <TextBlock Grid.Row="8" Text="Owner" Style="{StaticResource Label}"/>
-                                <TextBox Grid.Row="8" Grid.Column="1" x:Name="TxtOwner" TextChanged="AnySetting_Changed"/>
-                                <TextBlock Grid.Row="9" Text="Repo" Style="{StaticResource Label}" Margin="0,6,10,0"/>
-                                <TextBox Grid.Row="9" Grid.Column="1" x:Name="TxtRepo" Margin="0,6,0,0" TextChanged="AnySetting_Changed"/>
-                                <TextBlock Grid.Row="10" Text="Branch" Style="{StaticResource Label}" Margin="0,6,10,0"/>
-                                <TextBox Grid.Row="10" Grid.Column="1" x:Name="TxtBranch" Margin="0,6,0,0" TextChanged="AnySetting_Changed"/>
-                                <TextBlock Grid.Row="11" Text="Токен" Style="{StaticResource Label}" Margin="0,6,10,0"/>
-                                <PasswordBox Grid.Row="11" Grid.Column="1" x:Name="PwdToken" Margin="0,6,0,0" PasswordChanged="AnySetting_Changed"/>
-                                <TextBlock Grid.Row="12" Grid.Column="1" Style="{StaticResource Dim}" Margin="0,4,0,0"
-                                           Text="Необязательно. Без токена GitHub даёт 60 запросов в час на компьютер — при нескольких копиях с частым авто лучше указать."/>
+                                <Grid Grid.Row="4" Grid.ColumnSpan="2" x:Name="AdvancedGrid" Visibility="Collapsed" Margin="0,12,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" SharedSizeGroup="Lbl"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                        <RowDefinition Height="Auto"/>
+                                    </Grid.RowDefinitions>
 
-                                <TextBlock Grid.Row="13" Grid.ColumnSpan="2" Text="Моя разработка" Style="{StaticResource H2}" FontSize="13" Margin="0,18,0,8"/>
-                                <TextBlock Grid.Row="14" Text="Папка роботов" Style="{StaticResource Label}"/>
-                                <TextBox Grid.Row="14" Grid.Column="1" x:Name="TxtRobotsDir" TextChanged="AnySetting_Changed"
-                                         ToolTip="Относительно корня копии. По умолчанию project\OsEngine\Robots"/>
-                                <TextBlock Grid.Row="15" Text="Папка индикаторов" Style="{StaticResource Label}" Margin="0,6,10,0"/>
-                                <TextBox Grid.Row="15" Grid.Column="1" x:Name="TxtIndicatorsDir" Margin="0,6,0,0" TextChanged="AnySetting_Changed"
-                                         ToolTip="Относительно корня копии. По умолчанию project\OsEngine\Indicators"/>
-                                <TextBlock Grid.Row="16" Grid.Column="1" Style="{StaticResource Dim}" Margin="0,4,0,0"
-                                           Text="Сюда ставятся роботы и индикаторы из ваших репозиториев: каждый в подпапку с именем репозитория."/>
+                                    <StackPanel Grid.Row="0" Grid.ColumnSpan="2" Margin="0,0,0,8">
+                                        <TextBlock Text="Источник (GitHub)" Style="{StaticResource H2}" FontSize="13" Margin="0,0,0,2"/>
+                                        <TextBlock Style="{StaticResource Dim}" Text="Откуда брать OsEngine. Менять нужно, только если обновляетесь из своего форка."/>
+                                    </StackPanel>
+                                    <TextBlock Grid.Row="1" Text="Owner" Style="{StaticResource Label}"/>
+                                    <TextBox Grid.Row="1" Grid.Column="1" x:Name="TxtOwner" TextChanged="AnySetting_Changed"/>
+                                    <TextBlock Grid.Row="2" Text="Repo" Style="{StaticResource Label}" Margin="0,6,10,0"/>
+                                    <TextBox Grid.Row="2" Grid.Column="1" x:Name="TxtRepo" Margin="0,6,0,0" TextChanged="AnySetting_Changed"/>
+                                    <TextBlock Grid.Row="3" Text="Branch" Style="{StaticResource Label}" Margin="0,6,10,0"/>
+                                    <TextBox Grid.Row="3" Grid.Column="1" x:Name="TxtBranch" Margin="0,6,0,0" TextChanged="AnySetting_Changed"/>
+                                    <TextBlock Grid.Row="4" Text="Токен" Style="{StaticResource Label}" Margin="0,6,10,0"/>
+                                    <PasswordBox Grid.Row="4" Grid.Column="1" x:Name="PwdToken" Margin="0,6,0,0" PasswordChanged="AnySetting_Changed"/>
+                                    <TextBlock Grid.Row="5" Grid.Column="1" Style="{StaticResource Dim}" Margin="0,4,0,0"
+                                               Text="Необязательно. Без токена GitHub даёт 60 запросов в час на компьютер — при нескольких копиях с частым авто лучше указать."/>
+
+                                    <TextBlock Grid.Row="6" Grid.ColumnSpan="2" Text="Моя разработка" Style="{StaticResource H2}" FontSize="13" Margin="0,18,0,8"/>
+                                    <TextBlock Grid.Row="7" Text="Папка роботов" Style="{StaticResource Label}"/>
+                                    <TextBox Grid.Row="7" Grid.Column="1" x:Name="TxtRobotsDir" TextChanged="AnySetting_Changed"
+                                             ToolTip="Относительно корня копии. По умолчанию project\OsEngine\Robots"/>
+                                    <TextBlock Grid.Row="8" Text="Папка индикаторов" Style="{StaticResource Label}" Margin="0,6,10,0"/>
+                                    <TextBox Grid.Row="8" Grid.Column="1" x:Name="TxtIndicatorsDir" Margin="0,6,0,0" TextChanged="AnySetting_Changed"
+                                             ToolTip="Относительно корня копии. По умолчанию project\OsEngine\Indicators"/>
+                                    <TextBlock Grid.Row="9" Grid.Column="1" Style="{StaticResource Dim}" Margin="0,4,0,0"
+                                               Text="Сюда ставятся роботы и индикаторы из ваших репозиториев: каждый в подпапку с именем репозитория."/>
+                                </Grid>
                             </Grid>
                         </ScrollViewer>
                     </DockPanel>

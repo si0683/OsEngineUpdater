@@ -587,6 +587,16 @@ namespace OsEngineUpdater.Core
             }
 
             string cmd = _cfg.EffectiveBuildCommand;
+
+            // стандартная команда без .NET SDK даёт непонятную ошибку cmd — объясняем по-человечески
+            if (string.IsNullOrWhiteSpace(_cfg.BuildCommand) && !await HasDotnetSdkAsync(ct))
+            {
+                _log.Warn("Файлы обновлены, но OsEngine не пересобран: не найден .NET SDK. "
+                    + "Соберите проект в Visual Studio (Сборка → Собрать решение) "
+                    + "или установите .NET SDK: https://dotnet.microsoft.com/download");
+                return;
+            }
+
             _log.Info("Сборка: " + cmd);
 
             ProcessStartInfo psi = new ProcessStartInfo("cmd.exe", "/c " + cmd)
@@ -625,6 +635,41 @@ namespace OsEngineUpdater.Core
             else
             {
                 _log.Error($"Сборка завершилась с кодом {p.ExitCode}.");
+            }
+        }
+
+        private static async Task<bool> HasDotnetSdkAsync(CancellationToken ct)
+        {
+            try
+            {
+                ProcessStartInfo psi = new ProcessStartInfo("dotnet", "--list-sdks")
+                {
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true
+                };
+
+                using Process p = Process.Start(psi);
+
+                if (p == null)
+                {
+                    return false;
+                }
+
+                Task<string> output = p.StandardOutput.ReadToEndAsync(ct);
+                _ = p.StandardError.ReadToEndAsync(ct);
+                await p.WaitForExitAsync(ct);
+                return p.ExitCode == 0 && !string.IsNullOrWhiteSpace(await output);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch
+            {
+                // dotnet не найден в PATH
+                return false;
             }
         }
 
