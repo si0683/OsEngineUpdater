@@ -24,11 +24,14 @@ namespace OsEngineUpdater
         private CancellationTokenSource _cts;
         private CopyItem _runningItem;
         private UserSettings _userSettings = UserSettings.Load();
+        private readonly ObservableCollection<ExclusionItem> _protected = new ObservableCollection<ExclusionItem>();
 
         public MainWindow()
         {
             InitializeComponent();
             CopiesList.ItemsSource = _copies;
+            LstProtected.ItemsSource = _protected;
+            _protected.CollectionChanged += (_, _) => UpdateProtectedEmpty();
             SetFormEnabled(false);
         }
 
@@ -58,6 +61,7 @@ namespace OsEngineUpdater
             }
 
             InitWatch();
+            await ResyncTasksAsync(false);
             await CheckAllAsync(false);
         }
 
@@ -351,7 +355,7 @@ namespace OsEngineUpdater
 
             // авто
             AutoTaskInfo a = _selected.Auto;
-            int interval = _savedConfig?.IntervalMinutes ?? 1440;
+            int interval = _userSettings.EffectiveAutoMinutes;
 
             if (a == null)
             {
@@ -371,7 +375,7 @@ namespace OsEngineUpdater
             else
             {
                 bool exeMissing = a.Command != null && !File.Exists(a.Command);
-                SetText(TxtAuto, exeMissing ? "exe не найден" : (a.Enabled ? $"каждые {FormatInterval(interval)}" : "отключено"),
+                SetText(TxtAuto, exeMissing ? "exe не найден" : (a.Enabled ? $"{UserSettings.EveryText(interval)}" : "отключено"),
                     exeMissing ? FindBrush("Bad") : FindBrush(a.Enabled ? "Good" : "Warn"));
 
                 StringBuilder sb = new StringBuilder();
@@ -391,13 +395,6 @@ namespace OsEngineUpdater
             }
         }
 
-        private static string FormatInterval(int minutes)
-        {
-            if (minutes % 1440 == 0) return minutes == 1440 ? "сутки" : $"{minutes / 1440} сут.";
-            if (minutes % 60 == 0) return $"{minutes / 60} ч";
-            return $"{minutes} мин";
-        }
-
         #endregion
 
         #region Settings form
@@ -410,8 +407,12 @@ namespace OsEngineUpdater
             SelectByTag(CmbBuild, cfg.BuildAfterUpdate == null ? "auto" : (cfg.BuildAfterUpdate.Value ? "yes" : "no"));
             TxtBuildCommand.Text = cfg.BuildCommand ?? "";
             SelectByTag(CmbMode, cfg.IsDeltaMode ? UpdaterConfig.ModeDelta : UpdaterConfig.ModeMirror);
-            TxtInterval.Text = cfg.IntervalMinutes.ToString();
-            TxtProtected.Text = string.Join(Environment.NewLine, cfg.UserProtectedPaths);
+            _protected.Clear();
+
+            foreach (string pattern in cfg.UserProtectedPaths)
+            {
+                _protected.Add(new ExclusionItem(pattern));
+            }
             TxtOwner.Text = cfg.Owner;
             TxtRepo.Text = cfg.Repo;
             TxtBranch.Text = cfg.Branch;
@@ -426,22 +427,12 @@ namespace OsEngineUpdater
 
         private UpdaterConfig ReadForm()
         {
-            if (!int.TryParse(TxtInterval.Text.Trim(), out int interval) || interval < 1)
-            {
-                throw new FormatException("Интервал авто — целое число минут, не меньше 1.");
-            }
-
             UpdaterConfig cfg = _savedConfig?.Clone() ?? new UpdaterConfig();
             cfg.Profile = TagOf(CmbProfile) ?? UpdaterConfig.ProfilePrebuilt;
             cfg.BuildAfterUpdate = TagOf(CmbBuild) switch { "yes" => true, "no" => false, _ => null };
             cfg.BuildCommand = string.IsNullOrWhiteSpace(TxtBuildCommand.Text) ? null : TxtBuildCommand.Text.Trim();
             cfg.AutoMode = TagOf(CmbMode) ?? UpdaterConfig.ModeMirror;
-            cfg.AutoIntervalMinutes = interval;
-            cfg.UserProtectedPaths = TxtProtected.Text
-                .Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries)
-                .Select(s => s.Trim())
-                .Where(s => s.Length > 0)
-                .ToList();
+            cfg.UserProtectedPaths = _protected.Select(x => x.Pattern).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
             cfg.Owner = string.IsNullOrWhiteSpace(TxtOwner.Text) ? "AlexWan" : TxtOwner.Text.Trim();
             cfg.Repo = string.IsNullOrWhiteSpace(TxtRepo.Text) ? "OsEngine" : TxtRepo.Text.Trim();
             cfg.Branch = string.IsNullOrWhiteSpace(TxtBranch.Text) ? "master" : TxtBranch.Text.Trim();
@@ -488,8 +479,8 @@ namespace OsEngineUpdater
             {
                 try
                 {
-                    AutoTaskService.Install(_selected.Copy, cfg, Environment.ProcessPath);
-                    AppendLog(LogLevel.Ok, $"Задание автообновления обновлено: {cfg.AutoMode}, каждые {cfg.IntervalMinutes} мин.");
+                    AutoTaskService.Install(_selected.Copy, cfg, Environment.ProcessPath, _userSettings.EffectiveAutoMinutes);
+                    AppendLog(LogLevel.Ok, $"Задание автообновления обновлено: {cfg.AutoMode}, {UserSettings.EveryText(_userSettings.EffectiveAutoMinutes)}.");
                 }
                 catch (Exception ex)
                 {
@@ -521,12 +512,124 @@ namespace OsEngineUpdater
             }
         }
 
-        private void IntervalPreset_Click(object sender, RoutedEventArgs e)
+        private void BtnSave_Click(object sender, RoutedEventArgs e) => SaveSettings();
+
+        #region Do not overwrite
+
+        private void BtnProtectFile_Click(object sender, RoutedEventArgs e)
         {
-            TxtInterval.Text = (string)((Button)sender).Tag;
+            if (_selected == null)
+            {
+                return;
+            }
+
+            OpenFileDialog dlg = new OpenFileDialog
+            {
+                Title = "Файлы OsEngine, которые не нужно перезаписывать",
+                Multiselect = true,
+                InitialDirectory = DefaultPickDir()
+            };
+
+            if (dlg.ShowDialog(this) == true)
+            {
+                AddProtected(dlg.FileNames, false);
+            }
         }
 
-        private void BtnSave_Click(object sender, RoutedEventArgs e) => SaveSettings();
+        private void BtnProtectFolder_Click(object sender, RoutedEventArgs e)
+        {
+            if (_selected == null)
+            {
+                return;
+            }
+
+            OpenFolderDialog dlg = new OpenFolderDialog
+            {
+                Title = "Папки OsEngine, которые не нужно перезаписывать",
+                Multiselect = true,
+                InitialDirectory = DefaultPickDir()
+            };
+
+            if (dlg.ShowDialog(this) == true)
+            {
+                AddProtected(dlg.FolderNames, true);
+            }
+        }
+
+        private string DefaultPickDir()
+        {
+            string dir = Path.Combine(_selected.Root, @"project\OsEngine");
+            return Directory.Exists(dir) ? dir : _selected.Root;
+        }
+
+        /// <summary>Пути внутри копии → маски «Не перезаписывать» (папка — всё внутри неё).</summary>
+        private void AddProtected(IEnumerable<string> paths, bool folders)
+        {
+            string root = _selected.Root.TrimEnd('\\') + "\\";
+            List<string> outside = new List<string>();
+
+            foreach (string full in paths)
+            {
+                string f = Path.GetFullPath(full).TrimEnd('\\');
+
+                if (!(f + "\\").StartsWith(root, StringComparison.OrdinalIgnoreCase) || f.Length <= root.Length - 1)
+                {
+                    outside.Add(full);
+                    continue;
+                }
+
+                string rel = Path.GetRelativePath(_selected.Root, f).Replace('\\', '/');
+                string pattern = folders ? rel + "/**" : rel;
+
+                if (!_protected.Any(x => string.Equals(x.Pattern, pattern, StringComparison.OrdinalIgnoreCase)))
+                {
+                    _protected.Add(new ExclusionItem(pattern));
+                    SetDirty(true);
+                }
+            }
+
+            if (outside.Count > 0)
+            {
+                MessageBox.Show(this, "Можно выбрать только файлы и папки внутри этой копии:\n" + _selected.Root
+                                      + "\n\nНе добавлено:\n" + string.Join("\n", outside.Take(5)),
+                    "Не перезаписывать", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
+
+        private void BtnProtectRemove_Click(object sender, RoutedEventArgs e) => RemoveSelectedProtected();
+
+        private void LstProtected_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+        {
+            if (e.Key == System.Windows.Input.Key.Delete)
+            {
+                RemoveSelectedProtected();
+            }
+        }
+
+        private void RemoveSelectedProtected()
+        {
+            List<ExclusionItem> sel = LstProtected.SelectedItems.Cast<ExclusionItem>().ToList();
+
+            if (sel.Count == 0)
+            {
+                return;
+            }
+
+            foreach (ExclusionItem x in sel)
+            {
+                _protected.Remove(x);
+            }
+
+            SetDirty(true);
+        }
+
+        private void UpdateProtectedEmpty()
+        {
+            TxtProtectedEmpty.Visibility = _protected.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+            BtnProtectRemove.IsEnabled = _protected.Count > 0;
+        }
+
+        #endregion
 
         private void BtnRevert_Click(object sender, RoutedEventArgs e)
         {
@@ -611,20 +714,32 @@ namespace OsEngineUpdater
                 return;
             }
 
-            CopyItem item = _selected;
-            UpdaterConfig cfg = UpdaterConfig.Load(item.Copy);
-            bool force = ChkForce.IsChecked == true;
+            await RunCopyUpdateAsync(_selected, mode, ChkForce.IsChecked == true, false);
+        }
 
-            AppendSeparator();
+        /// <summary>Обновление копии из окна: вручную (кнопки) или автоматически (quick — по таймеру).</summary>
+        private async Task RunCopyUpdateAsync(CopyItem item, UpdateMode mode, bool force, bool quick)
+        {
+            UpdaterConfig cfg = UpdaterConfig.Load(item.Copy);
+
+            if (item == _selected)
+            {
+                AppendSeparator();
+            }
+
             await RunOperationAsync(item, async (ct, sink) =>
             {
                 UpdateLog log = new UpdateLog(item.Copy.LogPath, sink);
-                using UpdateEngine engine = new UpdateEngine(item.Copy, cfg, log) { Force = force };
+                using UpdateEngine engine = new UpdateEngine(item.Copy, cfg, log) { Force = force, QuickIfUpToDate = quick };
                 return await engine.RunAsync(mode, ct);
             });
 
-            await RefreshBehindAsync(item, true);
-            UpdateStatusCards();
+            await RefreshBehindAsync(item, true, item.LastHead);
+
+            if (item == _selected)
+            {
+                UpdateStatusCards();
+            }
         }
 
         private async void BtnAuto_Click(object sender, RoutedEventArgs e)
@@ -651,8 +766,8 @@ namespace OsEngineUpdater
                     }
 
                     UpdaterConfig cfg = UpdaterConfig.Load(item.Copy);
-                    AutoTaskService.Install(item.Copy, cfg, Environment.ProcessPath);
-                    AppendLog(LogLevel.Ok, $"Автообновление включено: {cfg.AutoMode}, каждые {cfg.IntervalMinutes} мин и при входе в систему ({item.Copy.TaskName}).");
+                    AutoTaskService.Install(item.Copy, cfg, Environment.ProcessPath, _userSettings.EffectiveAutoMinutes);
+                    AppendLog(LogLevel.Ok, $"Автообновление включено: {cfg.AutoMode}, {UserSettings.EveryText(_userSettings.EffectiveAutoMinutes)} и при входе в систему ({item.Copy.TaskName}).");
                     AppendLog(LogLevel.Info, "Задание запускает " + Environment.ProcessPath + " — не перемещайте этот exe, иначе включите авто заново.");
                 }
             }
@@ -979,6 +1094,23 @@ namespace OsEngineUpdater
         }
 
         #endregion
+    }
+
+    /// <summary>Строка списка «Не перезаписывать»: маска и её понятный вид.</summary>
+    public sealed class ExclusionItem
+    {
+        public ExclusionItem(string pattern)
+        {
+            Pattern = pattern.Trim().Replace('\\', '/');
+        }
+
+        public string Pattern { get; }
+
+        public bool IsFolder => Pattern.EndsWith("/**");
+
+        public string Icon => IsFolder ? "📁" : (Pattern.Contains('*') || Pattern.Contains('?') ? "✱" : "📄");
+
+        public string Display => IsFolder ? Pattern.Substring(0, Pattern.Length - 3) : Pattern;
     }
 
     /// <summary>Строка списка копий.</summary>

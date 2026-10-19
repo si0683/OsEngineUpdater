@@ -25,10 +25,7 @@ namespace OsEngineUpdater
 
         private void InitWatch()
         {
-            int minutes = _userSettings.WatchMinutes;
-            ComboBoxItem pick = CmbWatch.Items.Cast<ComboBoxItem>().FirstOrDefault(i => (string)i.Tag == minutes.ToString())
-                                ?? CmbWatch.Items.Cast<ComboBoxItem>().First(i => (string)i.Tag == "10");
-            CmbWatch.SelectedItem = pick;
+            SelectWatchItem(_userSettings.EffectiveAutoMinutes);
 
             foreach (CopyItem item in _copies)
             {
@@ -41,7 +38,15 @@ namespace OsEngineUpdater
             UpdateWatchTitle();
         }
 
-        private void CmbWatch_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private void SelectWatchItem(int minutes)
+        {
+            List<ComboBoxItem> items = CmbWatch.Items.Cast<ComboBoxItem>().ToList();
+
+            // ближайшее из списка (старые настройки могли хранить другое значение)
+            CmbWatch.SelectedItem = items.OrderBy(i => Math.Abs(int.Parse((string)i.Tag) - minutes)).First();
+        }
+
+        private async void CmbWatch_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (!_watchReady || CmbWatch.SelectedItem is not ComboBoxItem it)
             {
@@ -50,49 +55,77 @@ namespace OsEngineUpdater
 
             int minutes = int.Parse((string)it.Tag);
 
+            if (minutes == _userSettings.AutoMinutes)
+            {
+                return;
+            }
+
             try
             {
                 // перечитываем, чтобы не затереть изменения из «Мои аккаунты и репозитории»
                 UserSettings s = UserSettings.Load();
-                s.WatchMinutes = minutes;
+                s.AutoMinutes = minutes;
                 s.Save();
                 _userSettings = s;
             }
             catch (Exception ex)
             {
-                AppendLog(LogLevel.Warn, "Не удалось сохранить настройку проверки: " + ex.Message);
+                AppendLog(LogLevel.Warn, "Не удалось сохранить частоту автообновления: " + ex.Message);
             }
 
             RestartWatchTimer();
+            AppendLog(LogLevel.Ok, $"Автообновление: {UserSettings.EveryText(minutes)}.");
+            await ResyncTasksAsync(true);
+        }
+
+        /// <summary>
+        /// Задания Планировщика всех копий с включённым авто — на общую частоту и с --quick.
+        /// verbose = false: тихо, только если задание отличается (при запуске окна).
+        /// </summary>
+        private async Task ResyncTasksAsync(bool verbose)
+        {
+            int minutes = _userSettings.EffectiveAutoMinutes;
+
+            foreach (CopyItem item in _copies.ToList())
+            {
+                AutoTaskInfo a = item.Auto;
+
+                if (a == null || !a.Installed || a.Legacy || (!verbose && !a.NeedsResync(minutes)))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    UpdaterConfig cfg = UpdaterConfig.Load(item.Copy);
+                    await Task.Run(() => AutoTaskService.Install(item.Copy, cfg, Environment.ProcessPath, minutes));
+
+                    if (verbose)
+                    {
+                        AppendLog(LogLevel.Info, $"Задание автообновления копии {item.Name} перенастроено: {UserSettings.EveryText(minutes)}.");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    AppendLog(LogLevel.Warn, $"Задание автообновления копии {item.Name} осталось со старым расписанием: {ex.Message}");
+                }
+
+                await RefreshAutoAsync(item);
+            }
         }
 
         private void RestartWatchTimer()
         {
             _watchTimer.Stop();
-            int minutes = _userSettings.WatchMinutes;
-
-            if (minutes > 0)
-            {
-                _watchTimer.Interval = TimeSpan.FromMinutes(minutes);
-                _watchTimer.Start();
-                _nextCheck = DateTime.Now.AddMinutes(minutes);
-            }
-            else
-            {
-                _nextCheck = null;
-            }
-
+            int minutes = _userSettings.EffectiveAutoMinutes;
+            _watchTimer.Interval = TimeSpan.FromMinutes(minutes);
+            _watchTimer.Start();
+            _nextCheck = DateTime.Now.AddMinutes(minutes);
             UpdateWatchText();
         }
 
         private void UpdateWatchText()
         {
-            if (_userSettings.WatchMinutes <= 0)
-            {
-                TxtWatch.Text = "фоновая проверка выключена";
-                return;
-            }
-
             string last = _copies.Where(c => c.BehindCheckedAt != null).Select(c => c.BehindCheckedAt.Value).DefaultIfEmpty().Max() is DateTime d && d != default
                 ? $"проверено в {d:HH:mm}"
                 : "ещё не проверялось";
@@ -102,6 +135,7 @@ namespace OsEngineUpdater
         /// <summary>
         /// Проверка всех копий: один запрос «последний коммит» на источник (Owner/Repo/Branch),
         /// сравнение — только если копия отстаёт (результат кэшируется).
+        /// Копии с включённым авто, которые отстают, сразу обновляются; об остальных — уведомление.
         /// </summary>
         private async Task CheckAllAsync(bool notify)
         {
@@ -111,7 +145,8 @@ namespace OsEngineUpdater
             }
 
             _checking = true;
-            _nextCheck = _userSettings.WatchMinutes > 0 ? DateTime.Now.AddMinutes(_userSettings.WatchMinutes) : null;
+            _nextCheck = DateTime.Now.AddMinutes(_userSettings.EffectiveAutoMinutes);
+            List<CopyItem> toUpdate = new List<CopyItem>();
 
             try
             {
@@ -125,7 +160,7 @@ namespace OsEngineUpdater
                     }
 
                     int? before = item.Behind;
-                    string head = null;
+                    string head;
 
                     try
                     {
@@ -150,10 +185,16 @@ namespace OsEngineUpdater
                     await RefreshBehindAsync(item, true, head);
                     await RefreshAutoAsync(item);
 
-                    if (notify && item.Behind > 0 && (before == null || before == 0 || item.Behind > before))
+                    bool autoOn = item.Auto?.Installed == true && !item.Auto.Legacy && item.Auto.Enabled;
+
+                    if (item.Behind > 0 && autoOn)
+                    {
+                        toUpdate.Add(item);
+                    }
+                    else if (notify && item.Behind > 0 && (before == null || before == 0 || item.Behind > before))
                     {
                         int n = item.Behind.Value;
-                        AppendLog(LogLevel.Warn, $"Вышло обновление OsEngine: копия {item.Name} отстаёт на {n} {UpdateEngine.Plural(n, "коммит", "коммита", "коммитов")}.");
+                        AppendLog(LogLevel.Warn, $"Вышло обновление OsEngine: копия {item.Name} отстаёт на {n} {UpdateEngine.Plural(n, "коммит", "коммита", "коммитов")} (автообновление выключено).");
                         Flash();
                     }
                 }
@@ -163,6 +204,20 @@ namespace OsEngineUpdater
                 _checking = false;
                 UpdateWatchText();
                 UpdateWatchTitle();
+            }
+
+            // копии с включённым авто обновляем сразу, по одной (если окно не занято другой операцией)
+            foreach (CopyItem item in toUpdate)
+            {
+                if (IsBusy || !_copies.Contains(item))
+                {
+                    break;
+                }
+
+                int n = item.Behind ?? 0;
+                AppendLog(LogLevel.Info, $"Автообновление: копия {item.Name} отстаёт на {n} {UpdateEngine.Plural(n, "коммит", "коммита", "коммитов")} — обновляю.");
+                UpdaterConfig cfg = UpdaterConfig.Load(item.Copy);
+                await RunCopyUpdateAsync(item, cfg.IsDeltaMode ? UpdateMode.Delta : UpdateMode.Mirror, false, true);
             }
         }
 

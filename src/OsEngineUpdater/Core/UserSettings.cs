@@ -145,8 +145,26 @@ namespace OsEngineUpdater.Core
     {
         public List<SourceEntry> Entries { get; set; } = new List<SourceEntry>();
 
-        /// <summary>Как часто окно проверяет GitHub на новые коммиты для всех копий (минуты, 0 — не проверять).</summary>
-        public int WatchMinutes { get; set; } = 10;
+        /// <summary>
+        /// Частота автообновления (минуты) — одна на все копии: с ней окно проверяет GitHub и обновляет копии
+        /// с включённым авто, с ней же работают задания Планировщика, пока окно закрыто.
+        /// </summary>
+        public int AutoMinutes { get; set; } = 60;
+
+        public const int MinAutoMinutes = 10;
+
+        [JsonIgnore]
+        public int EffectiveAutoMinutes => AutoMinutes < MinAutoMinutes ? MinAutoMinutes : AutoMinutes;
+
+        /// <summary>«каждые 10 мин», «каждый час», «каждые 6 ч», «раз в сутки».</summary>
+        public static string EveryText(int minutes)
+        {
+            if (minutes == 1440) return "раз в сутки";
+            if (minutes % 1440 == 0) return $"раз в {minutes / 1440} сут.";
+            if (minutes == 60) return "каждый час";
+            if (minutes % 60 == 0) return $"каждые {minutes / 60} ч";
+            return $"каждые {minutes} мин";
+        }
 
         /// <summary>Формат прошлой версии (отдельные репозитории с типом) — переносится в Entries.</summary>
         [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]

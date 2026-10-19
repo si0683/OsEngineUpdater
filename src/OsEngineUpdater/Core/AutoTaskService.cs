@@ -18,6 +18,16 @@ namespace OsEngineUpdater.Core
         public string Command { get; init; }
         public string Arguments { get; init; }
 
+        /// <summary>Интервал повтора задания в минутах (null — не удалось прочитать).</summary>
+        public int? IntervalMinutes { get; init; }
+
+        /// <summary>Задание нового формата, но без --quick или с другим интервалом — стоит перенастроить.</summary>
+        public bool NeedsResync(int intervalMinutes)
+        {
+            return Installed && !Legacy
+                   && (!(Arguments ?? "").Contains("--quick") || IntervalMinutes != Math.Max(UserSettings.MinAutoMinutes, intervalMinutes));
+        }
+
         public string LastResultText
         {
             get
@@ -90,6 +100,25 @@ namespace OsEngineUpdater.Core
             }
 
             int state = task.State;
+            int? interval = null;
+
+            try
+            {
+                string xml = task.Xml;
+                // Планировщик нормализует интервал: PT60M → PT1H, PT1440M → P1D
+                System.Text.RegularExpressions.Match m = System.Text.RegularExpressions.Regex.Match(xml ?? "",
+                    @"<Interval>P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?)?</Interval>");
+
+                if (m.Success)
+                {
+                    int Part(int g) => m.Groups[g].Success ? int.Parse(m.Groups[g].Value) : 0;
+                    interval = Part(1) * 1440 + Part(2) * 60 + Part(3);
+                }
+            }
+            catch
+            {
+                // интервал — только для сверки
+            }
 
             return new AutoTaskInfo
             {
@@ -101,16 +130,19 @@ namespace OsEngineUpdater.Core
                 NextRun = ValidDate(task.NextRunTime),
                 Command = command,
                 Arguments = arguments,
+                IntervalMinutes = interval,
                 Legacy = (command ?? "").Contains("powershell", StringComparison.OrdinalIgnoreCase)
                          || (arguments ?? "").Contains(".ps1", StringComparison.OrdinalIgnoreCase)
             };
         }
 
-        public static void Install(CopyInfo copy, UpdaterConfig cfg, string exePath)
+        /// <param name="intervalMinutes">Общая частота автообновления (UserSettings.AutoMinutes).</param>
+        public static void Install(CopyInfo copy, UpdaterConfig cfg, string exePath, int intervalMinutes)
         {
             string user = Environment.UserDomainName + "\\" + Environment.UserName;
             string mode = cfg.IsDeltaMode ? "delta" : "mirror";
-            string args = $"--update \"{copy.Root}\" --mode {mode} --silent";
+            // --quick: если нового коммита нет, хватает одного запроса к GitHub
+            string args = $"--update \"{copy.Root}\" --mode {mode} --quick --silent";
             string start = DateTime.Now.AddMinutes(1).ToString("yyyy-MM-ddTHH:mm:ss");
 
             string xml = $@"<?xml version=""1.0"" encoding=""UTF-16""?>
@@ -127,7 +159,7 @@ namespace OsEngineUpdater.Core
       <StartBoundary>{start}</StartBoundary>
       <Enabled>true</Enabled>
       <Repetition>
-        <Interval>PT{cfg.IntervalMinutes}M</Interval>
+        <Interval>PT{Math.Max(UserSettings.MinAutoMinutes, intervalMinutes)}M</Interval>
         <StopAtDurationEnd>false</StopAtDurationEnd>
       </Repetition>
     </TimeTrigger>

@@ -42,7 +42,9 @@ namespace OsEngineUpdater.Core
         /// <summary>Режим автообновления: Mirror (полная сверка) или Delta (только изменения).</summary>
         public string AutoMode { get; set; } = ModeMirror;
 
-        public int AutoIntervalMinutes { get; set; } = 1440;
+        /// <summary>Устарело: частота автообновления теперь общая (UserSettings.AutoMinutes). Оставлено для старых конфигов.</summary>
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+        public int AutoIntervalMinutes { get; set; }
 
         public List<string> UserProtectedPaths { get; set; } = new List<string>();
 
@@ -86,8 +88,6 @@ namespace OsEngineUpdater.Core
         [JsonIgnore]
         public bool ShouldBuild => BuildAfterUpdate ?? BinProtected;
 
-        [JsonIgnore]
-        public int IntervalMinutes => AutoIntervalMinutes < 1 ? 1440 : AutoIntervalMinutes;
 
         [JsonIgnore]
         public bool IsDeltaMode => string.Equals(AutoMode, ModeDelta, StringComparison.OrdinalIgnoreCase);

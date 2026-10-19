@@ -53,6 +53,9 @@ namespace OsEngineUpdater.Core
         /// <summary>Не запускать сборку после обновления.</summary>
         public bool NoBuild { get; set; }
 
+        /// <summary>Автозапуск: если последний коммит уже применён, не сверять файлы (один запрос к GitHub).</summary>
+        public bool QuickIfUpToDate { get; set; }
+
         public UpdateEngine(CopyInfo copy, UpdaterConfig cfg, UpdateLog log)
         {
             _copy = copy;
@@ -192,6 +195,13 @@ namespace OsEngineUpdater.Core
         {
             head ??= await _gh.GetHeadShaAsync(ct);
             _log.Info($"Последний коммит: {head}");
+
+            if (apply && QuickIfUpToDate && File.Exists(_copy.ManifestPath)
+                && string.Equals(_copy.LoadState()?.LastSha, head, StringComparison.OrdinalIgnoreCase))
+            {
+                _log.Ok($"Уже актуально ({Short(head)}).");
+                return false;
+            }
 
             (List<TreeEntry> blobs, bool truncated) = await _gh.GetTreeAsync(head, ct);
 

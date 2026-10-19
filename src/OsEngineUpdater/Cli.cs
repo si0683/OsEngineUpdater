@@ -40,8 +40,9 @@ namespace OsEngineUpdater
                 {
                     CopyInfo copy = ResolveCopy(onRoot);
                     UpdaterConfig cfg = UpdaterConfig.Load(copy);
-                    AutoTaskService.Install(copy, cfg, Environment.ProcessPath);
-                    Print(LogLevel.Ok, $"Автообновление включено: {copy.TaskName} ({cfg.AutoMode}), каждые {cfg.IntervalMinutes} мин и при входе в систему.");
+                    int minutes = UserSettings.Load().EffectiveAutoMinutes;
+                    AutoTaskService.Install(copy, cfg, Environment.ProcessPath, minutes);
+                    Print(LogLevel.Ok, $"Автообновление включено: {copy.TaskName} ({cfg.AutoMode}), {UserSettings.EveryText(minutes)} и при входе в систему.");
                     return ExitCodes.Ok;
                 }
 
@@ -107,7 +108,8 @@ namespace OsEngineUpdater
             using UpdateEngine engine = new UpdateEngine(copy, cfg, log)
             {
                 Force = Has(args, "--force"),
-                NoBuild = Has(args, "--no-build")
+                NoBuild = Has(args, "--no-build"),
+                QuickIfUpToDate = Has(args, "--quick")
             };
 
             return await engine.RunAsync(mode, CancellationToken.None);
@@ -140,7 +142,7 @@ namespace OsEngineUpdater
         private static void PrintHelp()
         {
             Print(LogLevel.Info, "OsEngine Updater — без аргументов открывается окно.");
-            Print(LogLevel.Info, "  --update <копия> [--mode mirror|delta|full|check] [--silent] [--force] [--no-build]");
+            Print(LogLevel.Info, "  --update <копия> [--mode mirror|delta|full|check] [--quick] [--silent] [--force] [--no-build]");
             Print(LogLevel.Info, "  --auto-on <копия> | --auto-off <копия> | --status <копия>");
             Print(LogLevel.Info, "  --new-copy <папка>");
         }
