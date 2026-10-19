@@ -539,6 +539,9 @@ namespace OsEngineUpdater
         private const double DefaultCopiesWidth = 290;
         private const double DefaultSettingsWidth = 410;
 
+        /// <summary>Правая часть уже — ряды кнопок перестают помещаться в одну строку.</summary>
+        private const double MinRightWidth = 860;
+
         private void RestorePaneWidths()
         {
             if (_userSettings.CopiesPaneWidth >= ColCopies.MinWidth && _userSettings.CopiesPaneWidth <= 520)
@@ -553,7 +556,8 @@ namespace OsEngineUpdater
         }
 
         /// <summary>
-        /// Ограничить максимумы под текущий размер окна: правой части — не меньше 700 px, логу — не меньше 300 px.
+        /// Ограничить максимумы под текущий размер окна: правой части — не меньше 860 px (ряды кнопок в одну строку),
+        /// логу — не меньше 300 px.
         /// (Минимумы у растягивающихся колонок задавать нельзя: при нехватке места разметка зацикливается.)
         /// </summary>
         private void Panes_SizeChanged(object sender, SizeChangedEventArgs e) => ClampPanes();
@@ -564,7 +568,7 @@ namespace OsEngineUpdater
 
             if (total > 0)
             {
-                ColCopies.MaxWidth = Math.Max(ColCopies.MinWidth, Math.Min(520, total - 12 - 700));
+                ColCopies.MaxWidth = Math.Max(ColCopies.MinWidth, Math.Min(520, total - 12 - MinRightWidth));
             }
 
             double right = RightPanel.ActualWidth;
