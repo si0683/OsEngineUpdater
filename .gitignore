@@ -5,3 +5,5 @@ obj/
 # готовый exe выкладывается в GitHub Releases
 /OsEngineUpdater.exe
 /publish/
+/OsEngineUpdater.exe.download
+/OsEngineUpdater.exe.sha256
