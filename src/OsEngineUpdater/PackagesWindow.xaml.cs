@@ -800,7 +800,6 @@ namespace OsEngineUpdater
         public string Name { get; }
         public string Path { get; }
         public bool IsDir { get; }
-        public string Icon => IsDir ? "📁" : "📄";
         public ObservableCollection<FileNode> Children { get; } = new ObservableCollection<FileNode>();
 
         private bool _isExpanded;

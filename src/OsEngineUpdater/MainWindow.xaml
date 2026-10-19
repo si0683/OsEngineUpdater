@@ -194,9 +194,17 @@
                                                 <DataTemplate>
                                                     <DockPanel ToolTip="{Binding Pattern}" Background="Transparent">
                                                         <CheckBox DockPanel.Dock="Left" IsChecked="{Binding IsChecked, Mode=TwoWay}" Focusable="False" Margin="0,0,8,0"/>
-                                                        <TextBlock DockPanel.Dock="Left" Text="{Binding Icon}" Foreground="{StaticResource FgDim}" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                                        <Path x:Name="Ico" DockPanel.Dock="Left" Style="{StaticResource ItemIcon}" Margin="0,0,6,0"/>
                                                         <TextBlock Text="{Binding Display}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
                                                     </DockPanel>
+                                                    <DataTemplate.Triggers>
+                                                        <DataTrigger Binding="{Binding IsFolder}" Value="True">
+                                                            <Setter TargetName="Ico" Property="Data" Value="{StaticResource IconFolder}"/>
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding IsMask}" Value="True">
+                                                            <Setter TargetName="Ico" Property="Data" Value="{StaticResource IconMask}"/>
+                                                        </DataTrigger>
+                                                    </DataTemplate.Triggers>
                                                 </DataTemplate>
                                             </ListBox.ItemTemplate>
                                         </ListBox>

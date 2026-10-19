@@ -135,9 +135,14 @@
                                 <HierarchicalDataTemplate DataType="{x:Type local:FileNode}" ItemsSource="{Binding Children}">
                                     <StackPanel Orientation="Horizontal" Margin="0,1">
                                         <CheckBox IsChecked="{Binding IsChecked, Mode=TwoWay}" VerticalAlignment="Center"/>
-                                        <TextBlock Text="{Binding Icon}" Margin="8,0,4,0" Foreground="{StaticResource FgDim}" VerticalAlignment="Center"/>
+                                        <Path x:Name="Ico" Style="{StaticResource ItemIcon}" Margin="8,0,6,0"/>
                                         <TextBlock Text="{Binding Name}" VerticalAlignment="Center"/>
                                     </StackPanel>
+                                    <HierarchicalDataTemplate.Triggers>
+                                        <DataTrigger Binding="{Binding IsDir}" Value="True">
+                                            <Setter TargetName="Ico" Property="Data" Value="{StaticResource IconFolder}"/>
+                                        </DataTrigger>
+                                    </HierarchicalDataTemplate.Triggers>
                                 </HierarchicalDataTemplate>
                             </TreeView.ItemTemplate>
                         </TreeView>

@@ -1288,7 +1288,8 @@ namespace OsEngineUpdater
 
         public bool IsFolder => Pattern.EndsWith("/**");
 
-        public string Icon => IsFolder ? "📁" : (Pattern.Contains('*') || Pattern.Contains('?') ? "✱" : "📄");
+        /// <summary>Маска с * или ? (не «папка/**»): значок-звёздочка.</summary>
+        public bool IsMask => !IsFolder && (Pattern.Contains('*') || Pattern.Contains('?'));
 
         public string Display => IsFolder ? Pattern.Substring(0, Pattern.Length - 3) : Pattern;
     }
