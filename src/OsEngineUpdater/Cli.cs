@@ -80,6 +80,17 @@ namespace OsEngineUpdater
                         .GetAwaiter().GetResult();
                 }
 
+                if (Has(args, "--version"))
+                {
+                    Print(LogLevel.Info, SelfUpdater.CurrentVersionText);
+                    return ExitCodes.Ok;
+                }
+
+                if (Has(args, "--self-update"))
+                {
+                    return Task.Run(SelfUpdateNowAsync).GetAwaiter().GetResult();
+                }
+
                 PrintHelp();
                 return ExitCodes.Error;
             }
@@ -112,7 +123,37 @@ namespace OsEngineUpdater
                 QuickIfUpToDate = Has(args, "--quick")
             };
 
-            return await engine.RunAsync(mode, CancellationToken.None);
+            int code = await engine.RunAsync(mode, CancellationToken.None);
+
+            // запуск из Планировщика заодно обновляет и саму программу (если пора и вышла новая версия)
+            await SelfUpdater.TrySilentUpdateAsync(msg => log.Info(msg));
+            return code;
+        }
+
+        /// <summary>--self-update: проверить новую версию программы и установить сразу.</summary>
+        private static async Task<int> SelfUpdateNowAsync()
+        {
+            UserSettings s = UserSettings.Load();
+            Print(LogLevel.Info, $"Установлена версия {SelfUpdater.CurrentVersionText}, источник github.com/{s.SelfUpdateRepo}");
+            ReleaseInfo r = await SelfUpdater.GetLatestAsync(s.SelfUpdateRepo, CancellationToken.None);
+            SelfUpdater.MarkChecked();
+
+            if (!SelfUpdater.IsNewer(r))
+            {
+                Print(LogLevel.Ok, r == null ? "Релизов пока нет." : $"Установлена последняя версия (релиз {SelfUpdater.Short(r.Version)}).");
+                return ExitCodes.Ok;
+            }
+
+            (bool can, string why) = SelfUpdater.CanSelfUpdate();
+
+            if (!can)
+            {
+                Print(LogLevel.Error, $"Есть версия {SelfUpdater.Short(r.Version)}, но обновиться нельзя: {why}");
+                return ExitCodes.Error;
+            }
+
+            await SelfUpdater.DownloadAndReplaceAsync(r, m => Print(LogLevel.Info, m), CancellationToken.None);
+            return ExitCodes.Ok;
         }
 
         private static CopyInfo ResolveCopy(string path)
@@ -145,6 +186,7 @@ namespace OsEngineUpdater
             Print(LogLevel.Info, "  --update <копия> [--mode mirror|delta|full|check] [--quick] [--silent] [--force] [--no-build]");
             Print(LogLevel.Info, "  --auto-on <копия> | --auto-off <копия> | --status <копия>");
             Print(LogLevel.Info, "  --new-copy <папка>");
+            Print(LogLevel.Info, "  --version | --self-update");
         }
 
         private static bool Has(string[] args, string key)

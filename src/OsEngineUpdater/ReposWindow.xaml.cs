@@ -20,6 +20,10 @@ namespace OsEngineUpdater
         private SourceEntry _current;
         private bool _loading;
         private bool _dirty;
+        private ReleaseInfo _found;
+
+        /// <summary>Пользователь попросил установить найденную новую версию программы.</summary>
+        public ReleaseInfo InstallRequested { get; private set; }
 
         public ReposWindow(UserSettings settings)
         {
@@ -29,6 +33,8 @@ namespace OsEngineUpdater
             EntriesList.ItemsSource = _entries;
 
             TxtGit.Text = GitRunner.Available ? "Git: " + GitRunner.GitPath : "Git не найден — установите Git for Windows (git-scm.com)";
+
+            FillSelfUpdate();
 
             if (_entries.Count > 0)
             {
@@ -124,6 +130,109 @@ namespace OsEngineUpdater
                 _ => "Необязательно: для закрытого репозитория Git покажет окно входа."
             };
         }
+
+        #region Self update
+
+        private bool _loadingSelf;
+
+        private void FillSelfUpdate()
+        {
+            _loadingSelf = true;
+            ChkSelfUpdate.IsChecked = _settings.SelfUpdateEnabled;
+            List<ComboBoxItem> items = CmbSelfMinutes.Items.Cast<ComboBoxItem>().ToList();
+            CmbSelfMinutes.SelectedItem = items.OrderBy(i => Math.Abs(int.Parse((string)i.Tag) - _settings.SelfUpdateMinutes)).First();
+            CmbSelfMinutes.IsEnabled = _settings.SelfUpdateEnabled;
+            _loadingSelf = false;
+
+            (bool can, string why) = SelfUpdater.CanSelfUpdate();
+            string last = DateTime.TryParse(_settings.LastSelfCheckUtc, null, System.Globalization.DateTimeStyles.RoundtripKind, out DateTime dt)
+                ? $" · проверено {dt.ToLocalTime():dd.MM HH:mm}"
+                : "";
+            TxtSelfInfo.Text = $"Установлена версия {SelfUpdater.CurrentVersionText} · источник github.com/{_settings.SelfUpdateRepo}{last}"
+                               + (can ? "" : $"\nСамообновление недоступно: {why}");
+        }
+
+        private void SelfSetting_Changed(object sender, RoutedEventArgs e)
+        {
+            if (_loadingSelf || !IsLoaded && sender == CmbSelfMinutes)
+            {
+                return;
+            }
+
+            _settings.SelfUpdateEnabled = ChkSelfUpdate.IsChecked == true;
+            _settings.SelfUpdateMinutes = int.Parse((string)((ComboBoxItem)CmbSelfMinutes.SelectedItem).Tag);
+            CmbSelfMinutes.IsEnabled = _settings.SelfUpdateEnabled;
+            _dirty = true;
+        }
+
+        private async void BtnSelfCheck_Click(object sender, RoutedEventArgs e)
+        {
+            BtnSelfCheck.IsEnabled = false;
+            BtnSelfInstall.Visibility = Visibility.Collapsed;
+            SetSelfStatus("проверяю…", "FgDim");
+
+            try
+            {
+                ReleaseInfo r = await SelfUpdater.GetLatestAsync(_settings.SelfUpdateRepo, CancellationToken.None);
+                SelfUpdater.MarkChecked();
+                _settings.LastSelfCheckUtc = DateTime.UtcNow.ToString("o");
+
+                if (r == null)
+                {
+                    SetSelfStatus("В репозитории ещё нет релизов с OsEngineUpdater.exe.", "FgDim");
+                }
+                else if (SelfUpdater.IsNewer(r))
+                {
+                    _found = r;
+                    (bool can, string why) = SelfUpdater.CanSelfUpdate();
+                    SetSelfStatus($"Доступна новая версия {SelfUpdater.Short(r.Version)}." + (can ? "" : " Установить автоматически нельзя: " + why), "Warn");
+                    BtnSelfInstall.Visibility = can ? Visibility.Visible : Visibility.Collapsed;
+                }
+                else
+                {
+                    SetSelfStatus($"Установлена последняя версия (релиз {SelfUpdater.Short(r.Version)}).", "Good");
+                }
+            }
+            catch (Exception ex)
+            {
+                SetSelfStatus("Не удалось проверить: " + ex.Message, "Bad");
+            }
+
+            BtnSelfCheck.IsEnabled = true;
+        }
+
+        private void BtnSelfInstall_Click(object sender, RoutedEventArgs e)
+        {
+            if (_found == null)
+            {
+                return;
+            }
+
+            InstallRequested = _found;
+
+            if (_dirty)
+            {
+                // «Сохранить» само закрывает окно с DialogResult = true; не сохранилось — не устанавливаем
+                BtnSave_Click(sender, e);
+
+                if (_dirty)
+                {
+                    InstallRequested = null;
+                }
+
+                return;
+            }
+
+            DialogResult = true;
+        }
+
+        private void SetSelfStatus(string text, string brush)
+        {
+            TxtSelfStatus.Text = text;
+            TxtSelfStatus.Foreground = (Brush)FindResource(brush);
+        }
+
+        #endregion
 
         #region How to get a token
 

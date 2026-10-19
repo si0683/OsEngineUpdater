@@ -145,6 +145,18 @@ namespace OsEngineUpdater.Core
     {
         public List<SourceEntry> Entries { get; set; } = new List<SourceEntry>();
 
+        /// <summary>Обновлять саму программу из её репозитория (GitHub Releases).</summary>
+        public bool SelfUpdateEnabled { get; set; } = true;
+
+        /// <summary>Как часто проверять новую версию программы (минуты).</summary>
+        public int SelfUpdateMinutes { get; set; } = 30;
+
+        /// <summary>Репозиторий программы (owner/repo), откуда берутся релизы.</summary>
+        public string SelfUpdateRepo { get; set; } = SelfUpdater.DefaultRepo;
+
+        /// <summary>Когда последний раз проверялась новая версия программы (UTC, ISO).</summary>
+        public string LastSelfCheckUtc { get; set; } = "";
+
         /// <summary>
         /// Частота автообновления (минуты) — одна на все копии: с ней окно проверяет GitHub и обновляет копии
         /// с включённым авто, с ней же работают задания Планировщика, пока окно закрыто.

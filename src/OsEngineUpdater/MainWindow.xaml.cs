@@ -61,6 +61,7 @@ namespace OsEngineUpdater
             }
 
             InitWatch();
+            InitSelfUpdate();
             await ResyncTasksAsync(false);
             await CheckAllAsync(false);
         }
@@ -839,6 +840,13 @@ namespace OsEngineUpdater
                 _userSettings = UserSettings.Load();
                 AppendLog(LogLevel.Ok, $"Мои аккаунты и репозитории сохранены: {_userSettings.Entries.Count} шт.");
                 UpdateButtons();
+                UpdateAppVersionText();
+
+                if (w.InstallRequested != null)
+                {
+                    _pendingSelfUpdate = w.InstallRequested;
+                    _ = SelfTickAsync();
+                }
             }
         }
 
@@ -977,6 +985,11 @@ namespace OsEngineUpdater
 
         private void Window_Closing(object sender, CancelEventArgs e)
         {
+            if (_restarting)
+            {
+                return;
+            }
+
             if (IsBusy)
             {
                 if (MessageBox.Show(this, "Операция ещё выполняется. Прервать и закрыть?", "OsEngine Updater",

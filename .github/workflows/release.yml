@@ -1,0 +1,74 @@
+# Выпуск новой версии OsEngine Updater.
+# Запускается тегом вида v2.1.0: собирает один exe, считает SHA-256 и публикует релиз.
+# Все установленные программы найдут релиз и обновятся сами (по настройке «Обновление программы»).
+#
+# Подпись (необязательно): если в Settings → Secrets → Actions репозитория заданы
+#   SIGN_CERT_PFX_BASE64 — сертификат подписи кода (.pfx) в base64,
+#   SIGN_CERT_PASSWORD   — пароль к нему,
+# exe будет подписан до подсчёта SHA-256. Без секретов шаг пропускается.
+
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    env:
+      HAS_SIGN_CERT: ${{ secrets.SIGN_CERT_PFX_BASE64 != '' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Версия из тега
+        id: ver
+        shell: pwsh
+        run: |
+          $v = "${{ github.ref_name }}".TrimStart('v')
+          if ($v -notmatch '^\d+\.\d+\.\d+$') { throw "Тег должен быть вида v1.2.3, получено ${{ github.ref_name }}" }
+          "version=$v" >> $env:GITHUB_OUTPUT
+
+      - name: Сборка
+        shell: pwsh
+        run: dotnet publish src/OsEngineUpdater -c Release -p:Version=${{ steps.ver.outputs.version }} -o publish
+
+      - name: Подпись (если задан сертификат)
+        if: ${{ env.HAS_SIGN_CERT == 'true' }}
+        env:
+          SIGN_CERT_PFX_BASE64: ${{ secrets.SIGN_CERT_PFX_BASE64 }}
+          SIGN_CERT_PASSWORD: ${{ secrets.SIGN_CERT_PASSWORD }}
+        shell: pwsh
+        run: |
+          $pfx = Join-Path $env:RUNNER_TEMP 'sign.pfx'
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:SIGN_CERT_PFX_BASE64))
+          $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin" -Recurse -Filter signtool.exe |
+            Where-Object FullName -like '*x64*' | Sort-Object FullName -Descending | Select-Object -First 1
+          & $signtool.FullName sign /f $pfx /p $env:SIGN_CERT_PASSWORD /fd SHA256 /tr http://timestamp.digicert.com /td SHA256 publish\OsEngineUpdater.exe
+          if ($LASTEXITCODE -ne 0) { throw "Подпись не удалась" }
+          Remove-Item $pfx
+
+      - name: Контрольная сумма
+        shell: pwsh
+        run: |
+          $h = (Get-FileHash publish\OsEngineUpdater.exe -Algorithm SHA256).Hash.ToLower()
+          "$h  OsEngineUpdater.exe" | Set-Content -NoNewline -Encoding ascii publish\OsEngineUpdater.exe.sha256
+          "SHA-256: $h"
+
+      - name: Релиз
+        uses: softprops/action-gh-release@v2
+        with:
+          name: OsEngine Updater ${{ steps.ver.outputs.version }}
+          generate_release_notes: true
+          files: |
+            publish/OsEngineUpdater.exe
+            publish/OsEngineUpdater.exe.sha256

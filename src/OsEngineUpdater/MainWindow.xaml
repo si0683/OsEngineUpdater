@@ -36,6 +36,7 @@
                             ToolTip="Скачать свежую копию OsEngine из GitHub в пустую папку"/>
                     <Button x:Name="BtnDeleteCopy" Content="Удалить копию…" Click="BtnDeleteCopy_Click" Margin="0"
                             ToolTip="Удалить папку копии с диска (в Корзину) и выключить её автообновление"/>
+                    <TextBlock x:Name="TxtAppVersion" Style="{StaticResource Dim}" FontSize="11" Margin="2,10,0,0" TextWrapping="Wrap"/>
                 </StackPanel>
                 <ListBox x:Name="CopiesList" SelectionChanged="CopiesList_SelectionChanged">
                     <ListBox.ItemTemplate>

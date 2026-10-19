@@ -9,17 +9,31 @@
     <AssemblyName>OsEngineUpdater</AssemblyName>
     <RootNamespace>OsEngineUpdater</RootNamespace>
     <StartupObject>OsEngineUpdater.Program</StartupObject>
-    <Version>2.0.0</Version>
-    <Product>OsEngine Updater</Product>
-    <Authors>SidorenkoVA</Authors>
     <ApplicationIcon>Assets/app.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
 
-    <!-- один exe без установки .NET -->
+    <!-- версия: при выпуске релиза задаётся тегом (v2.1.0 → -p:Version=2.1.0) -->
+    <Version>2.1.0</Version>
+
+    <!-- полные сведения о файле: «пустые» exe антивирусы и SmartScreen встречают подозрительнее -->
+    <Product>OsEngine Updater</Product>
+    <AssemblyTitle>OsEngine Updater</AssemblyTitle>
+    <Description>Обновление копий OsEngine из официального репозитория и установка своих роботов и индикаторов</Description>
+    <Company>SidorenkoVA</Company>
+    <Authors>SidorenkoVA</Authors>
+    <Copyright>© SidorenkoVA</Copyright>
+    <NeutralLanguage>ru-RU</NeutralLanguage>
+    <RepositoryUrl>https://github.com/si0683/OsEngineUpdater</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/si0683/OsEngineUpdater</PackageProjectUrl>
+    <!-- в версии файла без хвоста «+commit» -->
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+
+    <!-- один exe без установки .NET; без сжатия — сжатые самораспаковывающиеся exe чаще вызывают ложные срабатывания -->
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <SelfContained>true</SelfContained>
     <PublishSingleFile>true</PublishSingleFile>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
-    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <EnableCompressionInSingleFile>false</EnableCompressionInSingleFile>
     <DebugType>embedded</DebugType>
     <SatelliteResourceLanguages>ru;en</SatelliteResourceLanguages>
   </PropertyGroup>
