@@ -201,7 +201,8 @@ namespace OsEngineUpdater
             }
 
             CopyItem item = _selected;
-            DeleteCopyWindow dlg = new DeleteCopyWindow(item.Copy, _copies.Where(c => c != item).Select(c => c.Copy)) { Owner = this };
+            DeleteCopyWindow dlg = new DeleteCopyWindow(item.Copy, _copies.Where(c => c != item).Select(c => c.Copy),
+                () => DetachWatcher(item)) { Owner = this };
 
             if (dlg.ShowDialog() == true)
             {
@@ -214,7 +215,12 @@ namespace OsEngineUpdater
                 return;
             }
 
-            // при отмене в окне Windows задание уже могло быть снято
+            // удаление не прошло — снова следим за копией; задание к этому моменту могло быть снято
+            if (CopyInfo.IsCopyRoot(item.Root))
+            {
+                AttachWatcher(item);
+            }
+
             await RefreshAutoAsync(item);
         }
 
