@@ -13,7 +13,7 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
 
     <!-- версия: при выпуске релиза задаётся тегом (v2.1.0 → -p:Version=2.1.0) -->
-    <Version>2.1.6</Version>
+    <Version>2.1.7</Version>
 
     <!-- полные сведения о файле: «пустые» exe антивирусы и SmartScreen встречают подозрительнее -->
     <Product>OsEngine Updater</Product>

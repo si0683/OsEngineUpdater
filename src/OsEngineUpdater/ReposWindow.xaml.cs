@@ -8,16 +8,56 @@ using OsEngineUpdater.Core;
 namespace OsEngineUpdater
 {
     /// <summary>
-    /// «Мои аккаунты и репозитории» — общие для всех копий: аккаунт GitHub, аккаунт GitFlic (можно оба сразу)
-    /// и список отдельных репозиториев. Всё хранится списком SourceEntry, как и раньше.
+    /// Запись «Мои аккаунты и репозитории»: GitHub и/или GitFlic. В settings.json это две SourceEntry с общим Group.
+    /// </summary>
+    public sealed class AccountGroup
+    {
+        public string Id { get; set; } = Guid.NewGuid().ToString("N");
+        public SourceEntry GitHub { get; set; }
+        public SourceEntry GitFlic { get; set; }
+
+        private static bool Filled(SourceEntry e) => e != null && !string.IsNullOrWhiteSpace(e.Url);
+
+        public bool IsEmpty => !Filled(GitHub) && !Filled(GitFlic);
+
+        public string Title
+        {
+            get
+            {
+                List<string> names = new[] { GitHub, GitFlic }.Where(Filled)
+                    .Select(e => e.RepoName == null ? e.Owner ?? e.Url : $"{e.Owner}/{e.RepoName}")
+                    .Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+                return names.Count == 0 ? "новая запись" : string.Join(" / ", names);
+            }
+        }
+
+        public string Subtitle
+        {
+            get
+            {
+                List<string> parts = new List<string>();
+
+                if (Filled(GitHub)) parts.Add("GitHub" + (GitHub.HasToken ? " · токен" : ""));
+                if (Filled(GitFlic)) parts.Add("GitFlic" + (GitFlic.HasToken ? " · токен" : ""));
+
+                return parts.Count == 0 ? "заполните GitHub или GitFlic справа" : string.Join("  +  ", parts);
+            }
+        }
+    }
+
+    /// <summary>
+    /// «Мои аккаунты и репозитории» — общие для всех копий. Слева записи, справа GitHub и GitFlic выбранной записи.
     /// DialogResult = true — настройки сохранены.
     /// </summary>
     public partial class ReposWindow : Window
     {
         private readonly UserSettings _settings;
-        private readonly ObservableCollection<SourceEntry> _entries;
-        private SourceEntry _current;
-        private bool _loading;
+        private readonly ObservableCollection<AccountGroup> _groups;
+
+        /// <summary>Записи с других git-серверов (из старых версий): в окне не показываются, сохраняются как есть.</summary>
+        private readonly List<SourceEntry> _others;
+
+        private AccountGroup _current;
         private bool _dirty;
         private ReleaseInfo _found;
 
@@ -28,118 +68,108 @@ namespace OsEngineUpdater
         {
             InitializeComponent();
             _settings = settings.Clone();
+            _others = _settings.Entries.Where(e => e.Provider == GitProvider.Other).ToList();
+            _groups = new ObservableCollection<AccountGroup>(Group(_settings.Entries.Where(e => e.Provider != GitProvider.Other)));
 
-            // первый аккаунт GitHub и первый GitFlic — в свои блоки, остальное — в список отдельных репозиториев
-            SourceEntry gitHub = _settings.Entries.FirstOrDefault(x => x.IsAccount && x.Provider == GitProvider.GitHub);
-            SourceEntry gitFlic = _settings.Entries.FirstOrDefault(x => x.IsAccount && x.Provider == GitProvider.GitFlic);
-            BlockGitHub.Load(GitProvider.GitHub, gitHub);
-            BlockGitFlic.Load(GitProvider.GitFlic, gitFlic);
+            // пустой список — сразу показываем пустую запись, чтобы было куда вписать аккаунт
+            if (_groups.Count == 0)
+            {
+                _groups.Add(new AccountGroup());
+            }
 
-            _entries = new ObservableCollection<SourceEntry>(_settings.Entries.Where(x => x != gitHub && x != gitFlic));
-            EntriesList.ItemsSource = _entries;
+            EntriesList.ItemsSource = _groups;
 
             TxtGit.Text = GitRunner.Available ? "Git: " + GitRunner.GitPath : "Git не найден — установите Git for Windows (git-scm.com)";
 
             FillSelfUpdate();
+            EntriesList.SelectedIndex = 0;
+        }
 
-            if (_entries.Count > 0)
+        /// <summary>
+        /// SourceEntry → записи окна: по Group; записи старых версий (без Group) — GitHub и GitFlic с одинаковым логином вместе.
+        /// </summary>
+        private static List<AccountGroup> Group(IEnumerable<SourceEntry> entries)
+        {
+            List<AccountGroup> groups = new List<AccountGroup>();
+
+            foreach (SourceEntry e in entries)
             {
-                EntriesList.SelectedIndex = 0;
+                bool flic = e.Provider == GitProvider.GitFlic;
+                AccountGroup g = string.IsNullOrEmpty(e.Group)
+                    ? groups.FirstOrDefault(x => x.Id.StartsWith("legacy:") && (flic ? x.GitFlic : x.GitHub) == null
+                                                 && string.Equals(x.Id.Substring(7), e.Owner, StringComparison.OrdinalIgnoreCase))
+                    : groups.FirstOrDefault(x => x.Id == e.Group && (flic ? x.GitFlic : x.GitHub) == null);
+
+                if (g == null)
+                {
+                    g = new AccountGroup { Id = string.IsNullOrEmpty(e.Group) ? "legacy:" + e.Owner : e.Group };
+
+                    // такой Group уже занят (два GitHub в одной записи) — отдельная запись
+                    if (groups.Any(x => x.Id == g.Id))
+                    {
+                        g.Id = Guid.NewGuid().ToString("N");
+                    }
+
+                    groups.Add(g);
+                }
+
+                if (flic)
+                {
+                    g.GitFlic = e;
+                }
+                else
+                {
+                    g.GitHub = e;
+                }
             }
-            else
+
+            foreach (AccountGroup g in groups.Where(x => x.Id.StartsWith("legacy:")))
             {
-                ShowEntry(null);
+                g.Id = Guid.NewGuid().ToString("N");
+            }
+
+            return groups;
+        }
+
+        private void EntriesList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (EntriesList.SelectedItem is AccountGroup g && g != _current)
+            {
+                ShowGroup(g);
+            }
+            else if (EntriesList.SelectedItem == null)
+            {
+                ShowGroup(null);
+            }
+        }
+
+        private void ShowGroup(AccountGroup g)
+        {
+            _current = g;
+            RecordPanel.IsEnabled = g != null;
+            BtnRemove.IsEnabled = g != null;
+            TxtRecordTitle.Text = g == null ? "Запись" : "Запись: " + g.Title;
+
+            BlockGitHub.Load(GitProvider.GitHub, g?.GitHub);
+            BlockGitFlic.Load(GitProvider.GitFlic, g?.GitFlic);
+
+            if (g != null)
+            {
+                // блок создаёт пустую запись, если её не было
+                g.GitHub = BlockGitHub.Entry;
+                g.GitFlic = BlockGitFlic.Entry;
             }
         }
 
         private void Block_Changed(object sender, EventArgs e)
         {
             _dirty = true;
-        }
 
-        private void EntriesList_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            ShowEntry(EntriesList.SelectedItem as SourceEntry);
-        }
-
-        private void ShowEntry(SourceEntry entry)
-        {
-            _current = entry;
-            _loading = true;
-
-            FormGrid.IsEnabled = entry != null;
-            BtnRemove.IsEnabled = entry != null;
-            TxtListEmpty.Visibility = _entries.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-
-            if (entry == null)
+            if (_current != null)
             {
-                PanelHowToken.Visibility = Visibility.Collapsed;
+                TxtRecordTitle.Text = "Запись: " + _current.Title;
+                EntriesList.Items.Refresh();
             }
-            TxtTest.Text = "";
-            TxtUrl.Text = entry?.Url ?? "";
-            TxtBranch.Text = entry?.Branch ?? "";
-            PwdToken.Password = entry?.Token ?? "";
-
-            _loading = false;
-            UpdateHints();
-        }
-
-        private void Form_Changed(object sender, RoutedEventArgs e)
-        {
-            if (_loading || _current == null)
-            {
-                return;
-            }
-
-            _current.Url = TxtUrl.Text.Trim();
-            _current.Branch = TxtBranch.Text.Trim();
-
-            if (sender == PwdToken)
-            {
-                _current.Token = PwdToken.Password;
-            }
-
-            _dirty = true;
-            EntriesList.Items.Refresh();
-            UpdateHints();
-        }
-
-        private void UpdateHints()
-        {
-            if (_current == null || string.IsNullOrWhiteSpace(_current.Url))
-            {
-                TxtDetected.Text = "";
-                TxtTokenHint.Text = "";
-                BtnHowToken.Content = "Как получить токен?";
-                TokenHelp.Fill(TxtHowToken, BtnOpenTokenPage, BtnOpenTokenPage2, GitProvider.GitHub);
-                LblBranch.Visibility = TxtBranch.Visibility = Visibility.Visible;
-                return;
-            }
-
-            bool account = _current.IsAccount;
-            LblBranch.Visibility = TxtBranch.Visibility = account ? Visibility.Collapsed : Visibility.Visible;
-
-            TxtDetected.Text = _current.Provider switch
-            {
-                GitProvider.GitHub when account => $"GitHub, аккаунт {_current.Owner} — в окне выбора будут все его репозитории",
-                GitProvider.GitFlic when account => $"GitFlic, аккаунт {_current.Owner} — в окне выбора будут все его проекты",
-                GitProvider.GitHub => $"GitHub, репозиторий {_current.Owner}/{_current.RepoName}",
-                GitProvider.GitFlic when _current.RepoName != null => $"GitFlic, проект {_current.Owner}/{_current.RepoName}",
-                GitProvider.GitFlic => "GitFlic: укажите https://gitflic.ru/user/<логин> или https://gitflic.ru/project/<логин>/<проект>",
-                _ => "Репозиторий на другом git-сервере"
-            };
-
-            GitProvider howFor = _current.Provider == GitProvider.GitFlic ? GitProvider.GitFlic : GitProvider.GitHub;
-            BtnHowToken.Content = TokenHelp.LinkText(howFor);
-            TokenHelp.Fill(TxtHowToken, BtnOpenTokenPage, BtnOpenTokenPage2, howFor);
-
-            TxtTokenHint.Text = _current.Provider switch
-            {
-                GitProvider.GitHub => "Необязательно: нужен, чтобы видеть и ставить закрытые репозитории.",
-                GitProvider.GitFlic when account => "Обязателен: без токена GitFlic не отдаёт список проектов.",
-                GitProvider.GitFlic => "Нужен для закрытого проекта (или войдёте через окно Git при первой загрузке).",
-                _ => "Необязательно: для закрытого репозитория Git покажет окно входа."
-            };
         }
 
         #region Self update
@@ -245,27 +275,12 @@ namespace OsEngineUpdater
 
         #endregion
 
-        #region How to get a token
-
-        private void BtnHowToken_Click(object sender, RoutedEventArgs e)
-        {
-            PanelHowToken.Visibility = PanelHowToken.Visibility == Visibility.Visible ? Visibility.Collapsed : Visibility.Visible;
-        }
-
-        private void BtnOpenTokenPage_Click(object sender, RoutedEventArgs e)
-        {
-            TokenHelp.Open(this, (Button)sender);
-        }
-
-        #endregion
-
         private void BtnAdd_Click(object sender, RoutedEventArgs e)
         {
-            SourceEntry entry = new SourceEntry();
-            _entries.Add(entry);
-            EntriesList.SelectedItem = entry;
+            AccountGroup g = new AccountGroup();
+            _groups.Add(g);
+            EntriesList.SelectedItem = g;
             _dirty = true;
-            TxtUrl.Focus();
         }
 
         private void BtnRemove_Click(object sender, RoutedEventArgs e)
@@ -275,96 +290,54 @@ namespace OsEngineUpdater
                 return;
             }
 
-            if (MessageBox.Show(this, $"Убрать «{_current.Title}» из списка?\n\nУже установленное в копиях не удаляется — для этого есть кнопка «Удалить из копии» в окне выбора.",
+            if (!_current.IsEmpty
+                && MessageBox.Show(this, $"Убрать «{_current.Title}» из списка?\n\nУже установленное в копиях не удаляется — для этого есть кнопка «Удалить из копии» в окне выбора.",
                     Title, MessageBoxButton.OKCancel, MessageBoxImage.Question) != MessageBoxResult.OK)
             {
                 return;
             }
 
-            int i = _entries.IndexOf(_current);
-            _entries.Remove(_current);
+            int i = _groups.IndexOf(_current);
+            _groups.Remove(_current);
+            _current = null;
             _dirty = true;
-            EntriesList.SelectedIndex = Math.Min(i, _entries.Count - 1);
+            EntriesList.SelectedIndex = Math.Min(i, _groups.Count - 1);
 
-            if (_entries.Count == 0)
+            if (_groups.Count == 0)
             {
-                ShowEntry(null);
+                ShowGroup(null);
             }
-        }
-
-        private async void BtnTest_Click(object sender, RoutedEventArgs e)
-        {
-            if (_current == null || string.IsNullOrWhiteSpace(_current.Url))
-            {
-                return;
-            }
-
-            SourceEntry entry = _current;
-            BtnTest.IsEnabled = false;
-            SetTest("проверяю…", "FgDim");
-
-            try
-            {
-                List<RepoInfo> repos = await RepoCatalog.ListAsync(entry, CancellationToken.None);
-
-                if (entry.IsAccount)
-                {
-                    int priv = repos.Count(r => r.Private);
-                    SetTest($"найдено репозиториев: {repos.Count}{(priv > 0 ? $" (закрытых {priv})" : "")}", "Good");
-                }
-                else
-                {
-                    string sha = await GitRunner.RemoteHeadAsync(repos[0], CancellationToken.None);
-                    SetTest("доступ есть, последний коммит " + UpdateEngine.Short(sha), "Good");
-                }
-            }
-            catch (Exception ex)
-            {
-                SetTest(ex.Message, "Bad");
-            }
-
-            BtnTest.IsEnabled = true;
-        }
-
-        private void SetTest(string text, string brush)
-        {
-            TxtTest.Text = text;
-            TxtTest.Foreground = (Brush)FindResource(brush);
         }
 
         private void BtnSave_Click(object sender, RoutedEventArgs e)
         {
-            string blockError = BlockGitHub.Validate() ?? BlockGitFlic.Validate();
-
-            if (blockError != null)
+            foreach (AccountGroup g in _groups)
             {
-                MessageBox.Show(this, blockError, Title, MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
+                string error = AccountBlock.Validate(GitProvider.GitHub, g.GitHub) ?? AccountBlock.Validate(GitProvider.GitFlic, g.GitFlic);
 
-            SourceEntry bad = _entries.FirstOrDefault(x => SourceEntry.Parse(x.Url).Owner == null);
-
-            if (bad != null)
-            {
-                EntriesList.SelectedItem = bad;
-                MessageBox.Show(this, "Укажите адрес аккаунта или репозитория (или удалите пустую строку).", Title,
-                    MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
+                if (error != null)
+                {
+                    EntriesList.SelectedItem = g;
+                    MessageBox.Show(this, error, Title, MessageBoxButton.OK, MessageBoxImage.Warning);
+                    return;
+                }
             }
 
             List<SourceEntry> all = new List<SourceEntry>();
 
-            if (!BlockGitHub.IsEmpty)
+            foreach (AccountGroup g in _groups)
             {
-                all.Add(BlockGitHub.Entry);
+                foreach (SourceEntry entry in new[] { g.GitHub, g.GitFlic })
+                {
+                    if (entry != null && !string.IsNullOrWhiteSpace(entry.Url))
+                    {
+                        entry.Group = g.Id;
+                        all.Add(entry);
+                    }
+                }
             }
 
-            if (!BlockGitFlic.IsEmpty)
-            {
-                all.Add(BlockGitFlic.Entry);
-            }
-
-            all.AddRange(_entries);
+            all.AddRange(_others);
             _settings.Entries = all;
 
             try

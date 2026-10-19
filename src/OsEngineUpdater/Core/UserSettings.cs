@@ -40,6 +40,13 @@ namespace OsEngineUpdater.Core
         /// <summary>Токен, зашифрованный для текущего пользователя Windows (DPAPI), base64.</summary>
         public string TokenProtected { get; set; } = "";
 
+        /// <summary>
+        /// Запись в «Мои аккаунты и репозитории»: GitHub и GitFlic одной записи имеют общий Group.
+        /// Пусто — запись из старой версии, при открытии окна раскладывается сама.
+        /// </summary>
+        [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+        public string Group { get; set; }
+
         [JsonIgnore]
         public string Token
         {

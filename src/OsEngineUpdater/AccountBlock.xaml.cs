@@ -6,8 +6,8 @@ using OsEngineUpdater.Core;
 namespace OsEngineUpdater
 {
     /// <summary>
-    /// Аккаунт GitHub или GitFlic в «Мои аккаунты и репозитории»: адрес (можно просто логин), токен, проверка.
-    /// Хранится обычной записью SourceEntry, как и раньше.
+    /// GitHub или GitFlic в записи «Мои аккаунты и репозитории»: аккаунт (можно просто логин)
+    /// или адрес одного репозитория, токен, проверка. Хранится обычной SourceEntry.
     /// </summary>
     public partial class AccountBlock : UserControl
     {
@@ -23,12 +23,15 @@ namespace OsEngineUpdater
             InitializeComponent();
         }
 
-        /// <summary>Запись аккаунта (адрес уже приведён к полному виду).</summary>
+        /// <summary>Запись (адрес уже приведён к полному виду).</summary>
         public SourceEntry Entry => _entry;
 
         public bool IsEmpty => string.IsNullOrWhiteSpace(TxtAccount.Text);
 
-        private string ProviderName => _provider == GitProvider.GitFlic ? "GitFlic" : "GitHub";
+        private static string NameOf(GitProvider p) => p == GitProvider.GitFlic ? "GitFlic" : "GitHub";
+
+        private static string ExampleOf(GitProvider p) =>
+            p == GitProvider.GitFlic ? "https://gitflic.ru/user/si0683" : "https://github.com/si0683";
 
         public void Load(GitProvider provider, SourceEntry entry)
         {
@@ -36,61 +39,65 @@ namespace OsEngineUpdater
             _entry = entry ?? new SourceEntry();
             _loading = true;
 
-            TxtHeader.Text = ProviderName;
+            TxtHeader.Text = NameOf(provider);
             TxtAccount.Text = _entry.Url ?? "";
             PwdToken.Password = _entry.Token ?? "";
+            TxtTest.Text = "";
+            PanelHowToken.Visibility = Visibility.Collapsed;
             BtnHowToken.Content = TokenHelp.LinkText(provider);
             TokenHelp.Fill(TxtHowToken, BtnOpenTokenPage, BtnOpenTokenPage2, provider);
             TxtTokenHint.Text = provider == GitProvider.GitFlic
-                ? "Обязателен: без токена GitFlic не отдаёт список проектов."
+                ? "Для аккаунта GitFlic обязателен: без токена GitFlic не отдаёт список проектов."
                 : "Необязательно: нужен, чтобы видеть и ставить закрытые репозитории.";
 
             _loading = false;
             UpdateDetected();
         }
 
-        /// <summary>null — всё в порядке (или блок пуст), иначе — что не так.</summary>
-        public string Validate()
+        /// <summary>null — всё в порядке (или адрес пуст), иначе — что не так.</summary>
+        public static string Validate(GitProvider provider, SourceEntry entry)
         {
-            if (IsEmpty)
+            if (entry == null || string.IsNullOrWhiteSpace(entry.Url))
             {
                 return null;
             }
 
-            (GitProvider p, string owner, string repo) = SourceEntry.Parse(_entry.Url);
+            (GitProvider p, string owner, _) = SourceEntry.Parse(entry.Url);
 
-            if (p != _provider || owner == null || repo != null)
+            if (p != provider || owner == null)
             {
-                return $"{ProviderName}: укажите логин или адрес аккаунта, например {Example}. "
-                       + "Отдельный репозиторий добавьте в список «Отдельные репозитории».";
+                return $"{NameOf(provider)}: укажите логин или адрес, например {ExampleOf(provider)}.";
             }
 
             return null;
         }
 
-        private string Example => _provider == GitProvider.GitFlic ? "https://gitflic.ru/user/si0683" : "https://github.com/si0683";
-
-        /// <summary>Логин → полный адрес аккаунта; адрес без https:// — дополняем.</summary>
+        /// <summary>
+        /// Логин или «логин/репозиторий» → полный адрес; адрес без https:// — дополняем.
+        /// </summary>
         private string Normalize(string text)
         {
             string t = (text ?? "").Trim().TrimEnd('/');
 
-            if (t.Length == 0)
+            if (t.Length == 0 || t.Contains("://"))
             {
-                return "";
+                return t;
             }
 
-            if (!t.Contains('/') && !t.Contains('.'))
+            string[] seg = t.Split('/');
+
+            if (!seg[0].Contains('.'))
             {
-                return _provider == GitProvider.GitFlic ? "https://gitflic.ru/user/" + t : "https://github.com/" + t;
+                // si0683 или si0683/ScriptsOS
+                if (_provider == GitProvider.GitFlic)
+                {
+                    return seg.Length == 1 ? "https://gitflic.ru/user/" + seg[0] : "https://gitflic.ru/project/" + seg[0] + "/" + seg[1];
+                }
+
+                return "https://github.com/" + t;
             }
 
-            if (!t.Contains("://"))
-            {
-                t = "https://" + t;
-            }
-
-            return t;
+            return "https://" + t;
         }
 
         private void Field_Changed(object sender, RoutedEventArgs e)
@@ -118,25 +125,31 @@ namespace OsEngineUpdater
 
             if (IsEmpty)
             {
-                TxtDetected.Text = $"Логин или адрес, например {Example}. Пусто — {ProviderName} не используется.";
+                TxtDetected.Text = $"Логин или адрес, например {ExampleOf(_provider)}. Пусто — {NameOf(_provider)} в этой записи не используется.";
                 TxtDetected.Foreground = (Brush)FindResource("FgDim");
                 return;
             }
 
-            string error = Validate();
-
-            if (error != null)
+            if (Validate(_provider, _entry) != null)
             {
-                TxtDetected.Text = $"Здесь нужен аккаунт {ProviderName}, например {Example}.";
+                TxtDetected.Text = $"Не похоже на адрес {NameOf(_provider)}. Например: {ExampleOf(_provider)}";
                 TxtDetected.Foreground = (Brush)FindResource("Bad");
                 BtnTest.IsEnabled = false;
                 return;
             }
 
-            TxtDetected.Text = _provider == GitProvider.GitFlic
-                ? $"Аккаунт {_entry.Owner}: в окне выбора будут все его проекты"
-                : $"Аккаунт {_entry.Owner}: в окне выбора будут все его репозитории";
-            TxtDetected.Foreground = (Brush)FindResource("Accent");
+            if (_entry.IsAccount)
+            {
+                TxtDetected.Text = _provider == GitProvider.GitFlic
+                    ? $"Аккаунт {_entry.Owner}: в окне выбора будут все его проекты"
+                    : $"Аккаунт {_entry.Owner}: в окне выбора будут все его репозитории";
+            }
+            else
+            {
+                TxtDetected.Text = $"Один репозиторий: {_entry.Owner}/{_entry.RepoName}";
+            }
+
+            TxtDetected.Foreground = (Brush)FindResource("Good");
         }
 
         private async void BtnTest_Click(object sender, RoutedEventArgs e)
@@ -148,16 +161,25 @@ namespace OsEngineUpdater
             try
             {
                 List<RepoInfo> repos = await RepoCatalog.ListAsync(entry, CancellationToken.None);
-                int priv = repos.Count(r => r.Private);
-                string what = _provider == GitProvider.GitFlic ? "проектов" : "репозиториев";
-                SetTest($"найдено {what}: {repos.Count}{(priv > 0 ? $" (закрытых {priv})" : "")}", "Good");
+
+                if (entry.IsAccount)
+                {
+                    int priv = repos.Count(r => r.Private);
+                    string what = _provider == GitProvider.GitFlic ? "проектов" : "репозиториев";
+                    SetTest($"найдено {what}: {repos.Count}{(priv > 0 ? $" (закрытых {priv})" : "")}", "Good");
+                }
+                else
+                {
+                    string sha = await GitRunner.RemoteHeadAsync(repos[0], CancellationToken.None);
+                    SetTest("доступ есть, последний коммит " + UpdateEngine.Short(sha), "Good");
+                }
             }
             catch (Exception ex)
             {
                 SetTest(ex.Message, "Bad");
             }
 
-            BtnTest.IsEnabled = !IsEmpty && Validate() == null;
+            BtnTest.IsEnabled = !IsEmpty && Validate(_provider, _entry) == null;
         }
 
         private void SetTest(string text, string brush)
