@@ -5,7 +5,7 @@
         WindowStartupLocation="CenterOwner" ShowInTaskbar="False" Icon="Assets/app.ico"
         Background="{StaticResource Bg}" Foreground="{StaticResource Fg}"
         FontFamily="Segoe UI" FontSize="13" Loaded="Window_Loaded" Closing="Window_Closing">
-    <Border Style="{StaticResource Card}" Margin="12,2,12,12">
+    <Border Style="{StaticResource Card}" Margin="8,2,8,8">
         <StackPanel>
             <TextBlock x:Name="TxtTitle" Style="{StaticResource H2}" FontSize="16" TextWrapping="Wrap"/>
             <TextBlock x:Name="TxtPath" Style="{StaticResource Dim}" FontSize="13"/>
