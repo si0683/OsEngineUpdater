@@ -24,6 +24,7 @@ namespace OsEngineUpdater
         public DeleteCopyWindow(CopyInfo copy, IEnumerable<CopyInfo> others, Action releaseOwnHandles)
         {
             InitializeComponent();
+            WindowTheme.Apply(this);
             _copy = copy;
             _others = others.ToList();
             _releaseOwnHandles = releaseOwnHandles;

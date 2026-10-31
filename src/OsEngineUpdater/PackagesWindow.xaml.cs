@@ -30,6 +30,7 @@ namespace OsEngineUpdater
         public PackagesWindow(CopyInfo copy, UpdaterConfig cfg, PackageKind kind, UserSettings settings)
         {
             InitializeComponent();
+            WindowTheme.Apply(this);
             _copy = copy;
             _cfg = cfg;
             _kind = kind;

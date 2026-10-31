@@ -67,6 +67,7 @@ namespace OsEngineUpdater
         public ReposWindow(UserSettings settings)
         {
             InitializeComponent();
+            WindowTheme.Apply(this);
             _settings = settings.Clone();
             _others = _settings.Entries.Where(e => e.Provider == GitProvider.Other).ToList();
             _groups = new ObservableCollection<AccountGroup>(Group(_settings.Entries.Where(e => e.Provider != GitProvider.Other)));

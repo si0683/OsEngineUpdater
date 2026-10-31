@@ -26,9 +26,13 @@ namespace OsEngineUpdater
         private UserSettings _userSettings = UserSettings.Load();
         private readonly ObservableCollection<ExclusionItem> _protected = new ObservableCollection<ExclusionItem>();
 
+        /// <summary>Копии, уже найденные заставкой при запуске (null — искать самому).</summary>
+        public List<string> PreloadedRoots { get; set; }
+
         public MainWindow()
         {
             InitializeComponent();
+            WindowTheme.Apply(this);
             CopiesList.ItemsSource = _copies;
             LstProtected.ItemsSource = _protected;
             RestorePaneWidths();
@@ -40,7 +44,7 @@ namespace OsEngineUpdater
 
         private async void Window_Loaded(object sender, RoutedEventArgs e)
         {
-            List<string> roots = await Task.Run(CopyRegistry.LoadWithDiscovery);
+            List<string> roots = PreloadedRoots ?? await Task.Run(CopyRegistry.LoadWithDiscovery);
 
             foreach (string r in roots)
             {
