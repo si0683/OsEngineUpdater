@@ -6,7 +6,7 @@
         WindowStartupLocation="CenterOwner" ShowInTaskbar="False" Icon="Assets/app.ico"
         Background="{StaticResource Bg}" Foreground="{StaticResource Fg}"
         FontFamily="Segoe UI" FontSize="13" Closing="Window_Closing">
-    <Grid Margin="12">
+    <Grid Margin="12,2,12,12">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="300"/>
             <ColumnDefinition Width="12"/>

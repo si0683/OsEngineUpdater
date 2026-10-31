@@ -6,7 +6,7 @@
         Background="{StaticResource Bg}" Foreground="{StaticResource Fg}"
         FontFamily="Segoe UI" FontSize="13"
         Loaded="Window_Loaded" Closing="Window_Closing">
-    <Grid Margin="12">
+    <Grid Margin="12,2,12,12">
         <Grid.ColumnDefinitions>
             <ColumnDefinition x:Name="ColCopies" Width="290" MinWidth="270" MaxWidth="520"/>
             <ColumnDefinition Width="12"/>
